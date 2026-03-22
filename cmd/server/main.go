@@ -5,6 +5,29 @@ import (
 	"net/http"
 )
 
+type Metric struct {
+	metricType string
+	metricName string
+}
+
+type GaugeMetric struct {
+	Metric
+	value float64
+}
+
+type CounterMetric struct {
+	Metric
+	value int64
+}
+
+type MemStorageRepo struct {
+	metrics map[string][]Metric
+}
+
+func getMetricsByType() {
+
+}
+
 func handleMetric(w http.ResponseWriter, req *http.Request) {
 	metricType := req.PathValue("metricType")
 	metricName := req.PathValue("metricName")

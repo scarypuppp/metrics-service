@@ -1,48 +1,21 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
+
+	handlers "github.com/scarypuppp/metrics-service/internal/handler"
 )
 
-type Metric struct {
-	metricType string
-	metricName string
-}
+func run() error {
+	mux := http.NewServeMux()
 
-type GaugeMetric struct {
-	Metric
-	value float64
-}
+	mux.HandleFunc("/update/{metricType}/{metricName}/{metricValue}", handlers.CreateMetricHandler)
 
-type CounterMetric struct {
-	Metric
-	value int64
-}
-
-type MemStorageRepo struct {
-	metrics map[string][]Metric
-}
-
-func getMetricsByType() {
-
-}
-
-func handleMetric(w http.ResponseWriter, req *http.Request) {
-	metricType := req.PathValue("metricType")
-	metricName := req.PathValue("metricName")
-	metricValue := req.PathValue("metricValue")
-
-	fmt.Println(metricType, metricName, metricValue)
+	return http.ListenAndServe(`:8080`, mux)
 }
 
 func main() {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("/update/{metricType}/{metricName}/{metricValue}", handleMetric)
-
-	err := http.ListenAndServe(`:8080`, mux)
-	if err != nil {
+	if err := run(); err != nil {
 		panic(err)
 	}
 }

@@ -1,12 +1,14 @@
 package service
 
 import (
-	"fmt"
+	"errors"
 	"strconv"
 
 	models "github.com/scarypuppp/metrics-service/internal/model"
 	"github.com/scarypuppp/metrics-service/internal/repository"
 )
+
+var InvalidMetricTypeProvided = errors.New("invalid metric type provided")
 
 type MetricService struct {
 	Storage repository.IMemStorage
@@ -57,7 +59,7 @@ func (ms *MetricService) CreateMetric(name string, MType string, stringValue str
 			Hash:  "",
 		}
 	} else {
-		return nil, fmt.Errorf("wrong metric type passed")
+		return nil, InvalidMetricTypeProvided
 	}
 
 	err := ms.Storage.SetMetric(metric)

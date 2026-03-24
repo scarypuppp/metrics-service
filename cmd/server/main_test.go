@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCreateMetricHandler(t *testing.T) {
+func TestCreateCounterMetric(t *testing.T) {
 	type inputArgs struct {
 		metricType string
 		metricName string
@@ -82,10 +82,34 @@ func TestCreateMetricHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "Unexpected metric value",
+			name: "Invalid metric value",
+			inputArgs: inputArgs{
+				metricType: "counter",
+				metricName: "counter1",
+				metricVal:  "none",
+			},
+			expectedOutput: expectedOutput{
+				metricValue: "",
+				statusCode:  400,
+			},
+		},
+		{
+			name: "Empty metric value",
 			inputArgs: inputArgs{
 				metricType: "gauge",
-				metricName: "metric1",
+				metricName: "testgauge",
+				metricVal:  "//asd/dfgh/",
+			},
+			expectedOutput: expectedOutput{
+				metricValue: "",
+				statusCode:  400,
+			},
+		},
+		{
+			name: "Invalid type",
+			inputArgs: inputArgs{
+				metricType: "unknown",
+				metricName: "counter1",
 				metricVal:  "none",
 			},
 			expectedOutput: expectedOutput{
@@ -116,6 +140,7 @@ func TestCreateMetricHandler(t *testing.T) {
 
 			resBody, err := io.ReadAll(res.Body)
 			fmt.Println(string(resBody))
+			fmt.Println(res.StatusCode)
 			require.NoError(t, err)
 
 			require.Equal(t, test.expectedOutput.statusCode, res.StatusCode)

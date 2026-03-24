@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/scarypuppp/metrics-service/internal/model"
 	"github.com/scarypuppp/metrics-service/internal/service"
@@ -23,15 +25,18 @@ func CreateMetricHandler(metricService service.MetricService) http.HandlerFunc {
 			return
 		}
 		metricValue := req.PathValue("metricValue")
-		metric, err := metricService.CreateMetric(metricName, metricType, metricValue)
+		metric, createMeticErr := metricService.CreateMetric(metricName, metricType, metricValue)
 
-		if err != nil {
-			errorMessage := fmt.Sprintf("Error creating metric: %s", err)
+		if createMeticErr != nil {
+			if errors.Is(createMeticErr, strconv.ErrSyntax) {
+				errorMessage := fmt.Sprintf("Error parsing metric: %s", createMeticErr)
+				http.Error(w, errorMessage, http.StatusBadRequest)
+				return
+			}
+			errorMessage := fmt.Sprintf("Error creating metric: %s", createMeticErr)
 			http.Error(w, errorMessage, http.StatusInternalServerError)
 			return
 		}
-
-		fmt.Println(*metric.Delta)
 		var response string
 		if metric.MType == models.Gauge {
 			response = fmt.Sprintf("%f", *metric.Value)

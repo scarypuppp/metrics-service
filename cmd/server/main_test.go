@@ -93,6 +93,18 @@ func TestCreateMetricHandler(t *testing.T) {
 				statusCode:  400,
 			},
 		},
+		{
+			name: "Invalid type",
+			inputArgs: inputArgs{
+				metricType: "unknown",
+				metricName: "metric1",
+				metricVal:  "none",
+			},
+			expectedOutput: expectedOutput{
+				metricValue: "",
+				statusCode:  400,
+			},
+		},
 	}
 
 	for _, test := range tests {

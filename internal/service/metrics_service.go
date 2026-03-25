@@ -8,7 +8,8 @@ import (
 	"github.com/scarypuppp/metrics-service/internal/repository"
 )
 
-var InvalidMetricTypeProvided = errors.New("invalid metric type provided")
+var ErrInvalidMetricType = errors.New("invalid metric type provided")
+var ErrMetricTypeMismatch = errors.New("metric with such name already exists with other type")
 
 type MetricService struct {
 	Storage repository.IMemStorage
@@ -23,6 +24,10 @@ func (ms *MetricService) CreateMetric(name string, MType string, stringValue str
 	metric := (*models.Metrics)(nil)
 
 	existingMetric := ms.Storage.GetMetric(name)
+
+	if existingMetric != nil && existingMetric.MType != MType {
+		return nil, ErrMetricTypeMismatch
+	}
 
 	if MType == models.Gauge {
 		value, err := strconv.ParseFloat(stringValue, 64)
@@ -59,7 +64,7 @@ func (ms *MetricService) CreateMetric(name string, MType string, stringValue str
 			Hash:  "",
 		}
 	} else {
-		return nil, InvalidMetricTypeProvided
+		return nil, ErrInvalidMetricType
 	}
 
 	err := ms.Storage.SetMetric(metric)

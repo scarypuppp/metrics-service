@@ -1,4 +1,4 @@
-package handler
+package handlers
 
 import (
 	"errors"
@@ -25,33 +25,26 @@ func CreateMetricHandler(metricService service.MetricService) http.HandlerFunc {
 			return
 		}
 		metricValue := req.PathValue("metricValue")
-
 		metric, createMeticErr := metricService.CreateMetric(metricName, metricType, metricValue)
 
 		if createMeticErr != nil {
-			switch {
-			case errors.Is(createMeticErr, strconv.ErrSyntax):
-				errorMessage := fmt.Sprintf("Error parsing metric: %s", createMeticErr)
+			if errors.Is(createMeticErr, strconv.ErrSyntax) ||
+				errors.Is(createMeticErr, service.ErrInvalidMetricType) ||
+				errors.Is(createMeticErr, service.ErrMetricTypeMismatch) {
+				errorMessage := fmt.Sprintf("%s", createMeticErr)
 				http.Error(w, errorMessage, http.StatusBadRequest)
-				return
-			case errors.Is(createMeticErr, service.InvalidMetricTypeProvided):
-				errorMessage := fmt.Sprintf("Error creating metric: %s", createMeticErr)
-				http.Error(w, errorMessage, http.StatusBadRequest)
-				return
-			default:
+			} else {
 				errorMessage := fmt.Sprintf("Error creating metric: %s", createMeticErr)
 				http.Error(w, errorMessage, http.StatusInternalServerError)
-				return
 			}
+			return
 		}
-
 		var response string
 		if metric.MType == models.Gauge {
 			response = fmt.Sprintf("%f", *metric.Value)
 		} else {
 			response = fmt.Sprintf("%d", *metric.Delta)
 		}
-
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(response))

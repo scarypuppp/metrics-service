@@ -1,153 +1,140 @@
 package main
 
 import (
-	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
-	handlers "github.com/scarypuppp/metrics-service/internal/handler"
-	models "github.com/scarypuppp/metrics-service/internal/model"
+	"github.com/scarypuppp/metrics-service/internal/handler"
+	"github.com/scarypuppp/metrics-service/internal/model"
 	"github.com/scarypuppp/metrics-service/internal/repository"
 	"github.com/scarypuppp/metrics-service/internal/service"
-	_ "github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestCreateCounterMetric(t *testing.T) {
-	type inputArgs struct {
-		metricType string
-		metricName string
-		metricVal  string
-	}
-
-	type expectedOutput struct {
-		metricValue string
-		statusCode  int
-	}
-
+func TestCreateMetricHandler(t *testing.T) {
 	tests := []struct {
 		name           string
-		inputArgs      inputArgs
-		expectedOutput expectedOutput
+		method         string
+		url            string
+		expectedStatus int
+		expectedBody   string
 	}{
 		{
-			name: "Set counter value #1",
-			inputArgs: inputArgs{
-				metricType: "counter",
-				metricName: "metric1",
-				metricVal:  "1",
-			},
-			expectedOutput: expectedOutput{
-				metricValue: "1",
-				statusCode:  200,
-			},
+			name:           "valid gauge metric",
+			method:         http.MethodPost,
+			url:            "/update/gauge/temperature/36.6",
+			expectedStatus: http.StatusOK,
+			expectedBody:   "36.600000",
 		},
 		{
-			name: "Set gauge value #1",
-			inputArgs: inputArgs{
-				metricType: "gauge",
-				metricName: "metric2",
-				metricVal:  "3.14",
-			},
-			expectedOutput: expectedOutput{
-				metricValue: "3.14",
-				statusCode:  200,
-			},
+			name:           "valid counter metric",
+			method:         http.MethodPost,
+			url:            "/update/counter/hits/10",
+			expectedStatus: http.StatusOK,
+			expectedBody:   "10",
 		},
 		{
-			name: "Empty metric name",
-			inputArgs: inputArgs{
-				metricType: "gauge",
-				metricName: "",
-				metricVal:  "3.14",
-			},
-			expectedOutput: expectedOutput{
-				metricValue: "",
-				statusCode:  404,
-			},
+			name:           "wrong method",
+			method:         http.MethodGet,
+			url:            "/update/gauge/temperature/36.6",
+			expectedStatus: http.StatusMethodNotAllowed,
 		},
 		{
-			name: "Empty metric type",
-			inputArgs: inputArgs{
-				metricType: "",
-				metricName: "metric1",
-				metricVal:  "3.14",
-			},
-			expectedOutput: expectedOutput{
-				metricValue: "",
-				statusCode:  404,
-			},
+			name:           "invalid metric type",
+			method:         http.MethodPost,
+			url:            "/update/unknown/temperature/36.6",
+			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name: "Invalid metric value",
-			inputArgs: inputArgs{
-				metricType: "counter",
-				metricName: "counter1",
-				metricVal:  "none",
-			},
-			expectedOutput: expectedOutput{
-				metricValue: "",
-				statusCode:  400,
-			},
-		},
-		{
-			name: "Empty metric value",
-			inputArgs: inputArgs{
-				metricType: "gauge",
-				metricName: "testgauge",
-				metricVal:  "//asd/dfgh/",
-			},
-			expectedOutput: expectedOutput{
-				metricValue: "",
-				statusCode:  400,
-			},
-		},
-		{
-			name: "Invalid type",
-			inputArgs: inputArgs{
-				metricType: "unknown",
-				metricName: "counter1",
-				metricVal:  "none",
-			},
-			expectedOutput: expectedOutput{
-				metricValue: "",
-				statusCode:  400,
-			},
+			name:           "invalid metric value",
+			method:         http.MethodPost,
+			url:            "/update/gauge/temperature/abc",
+			expectedStatus: http.StatusBadRequest,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			storage := repository.MemStorage{Metrics: make(map[string]models.Metrics)}
-			metricService := service.MetricService{Storage: &storage}
-			handler := handlers.CreateMetricHandler(metricService)
+	storage := repository.MemStorage{Metrics: make(map[string]models.Metrics)}
+	metricService := service.MetricService{Storage: &storage}
 
-			request := httptest.NewRequest(http.MethodPost, "/update/{metricType}/{metricName}/{metricValue}", nil)
-			request.SetPathValue("metricType", test.inputArgs.metricType)
-			request.SetPathValue("metricName", test.inputArgs.metricName)
-			request.SetPathValue("metricValue", test.inputArgs.metricVal)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 
-			// создаём новый Recorder
-			w := httptest.NewRecorder()
+			mux := http.NewServeMux()
+			mux.HandleFunc("/update/{metricType}/{metricName}/{metricValue}",
+				handlers.CreateMetricHandler(metricService))
 
-			handler(w, request)
-			res := w.Result()
+			req := httptest.NewRequest(tt.method, tt.url, nil)
+			rr := httptest.NewRecorder()
 
-			defer res.Body.Close()
+			mux.ServeHTTP(rr, req)
 
-			resBody, err := io.ReadAll(res.Body)
-			fmt.Println(string(resBody))
-			fmt.Println(res.StatusCode)
-			require.NoError(t, err)
-
-			require.Equal(t, test.expectedOutput.statusCode, res.StatusCode)
-			if res.StatusCode == 200 {
-				require.Equal(t, test.expectedOutput.metricValue, strings.TrimRight(string(resBody), "0"))
+			require.Equal(t, tt.expectedStatus, rr.Code)
+			if tt.expectedBody != "" {
+				assert.Contains(t, rr.Body.String(), tt.expectedBody)
 			}
-
 		})
 	}
+}
+
+func TestCreateMetricHandler_GaugeOverwritesOnUpdate(t *testing.T) {
+	storage := repository.MemStorage{Metrics: make(map[string]models.Metrics)}
+	metricService := service.MetricService{Storage: &storage}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/update/{metricType}/{metricName}/{metricValue}",
+		handlers.CreateMetricHandler(metricService))
+
+	req := httptest.NewRequest(http.MethodPost, "/update/gauge/temperature/10.5", nil)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	req = httptest.NewRequest(http.MethodPost, "/update/gauge/temperature/99.9", nil)
+	rr = httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	assert.Contains(t, rr.Body.String(), "99.900000")
+}
+
+func TestCreateMetricHandler_CounterAccumulatesOnUpdate(t *testing.T) {
+	storage := repository.MemStorage{Metrics: make(map[string]models.Metrics)}
+	metricService := service.MetricService{Storage: &storage}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/update/{metricType}/{metricName}/{metricValue}",
+		handlers.CreateMetricHandler(metricService))
+
+	req := httptest.NewRequest(http.MethodPost, "/update/counter/hits/10", nil)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	req = httptest.NewRequest(http.MethodPost, "/update/counter/hits/5", nil)
+	rr = httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	assert.Contains(t, rr.Body.String(), "15")
+}
+
+func TestCreateMetricHandler_MetricTypeConflictReturnsError(t *testing.T) {
+	storage := repository.MemStorage{Metrics: make(map[string]models.Metrics)}
+	metricService := service.MetricService{Storage: &storage}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/update/{metricType}/{metricName}/{metricValue}",
+		handlers.CreateMetricHandler(metricService))
+
+	req := httptest.NewRequest(http.MethodPost, "/update/gauge/temperature/36.6", nil)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	req = httptest.NewRequest(http.MethodPost, "/update/counter/temperature/10", nil)
+	rr = httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }

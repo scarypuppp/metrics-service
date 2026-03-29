@@ -3,16 +3,11 @@ package repository
 import (
 	"fmt"
 
-	models "github.com/scarypuppp/metrics-service/internal/model"
+	"github.com/scarypuppp/metrics-service/internal/model"
 )
 
 type MemStorage struct {
 	Metrics map[string]models.Metrics
-}
-
-type IMemStorage interface {
-	GetMetric(id string) *models.Metrics
-	SetMetric(metric *models.Metrics) error
 }
 
 func (s *MemStorage) GetMetric(id string) *models.Metrics {

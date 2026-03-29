@@ -93,29 +93,31 @@ func sendMetric(client *http.Client, metric models.Metrics) error {
 	if metric.MType == models.Counter {
 		stringValue = strconv.FormatInt(*metric.Delta, 10)
 	}
-	if stringValue == "" {
-		panic("YOO")
-	}
-	url := fmt.Sprintf("http://localhost:8080/update/%s/%s/%s", metric.MType, metric.ID, stringValue)
+	url := fmt.Sprintf("http://127.0.0.1:8080/update/%s/%s/%s", metric.MType, metric.ID, stringValue)
 	request, err := http.NewRequest(http.MethodPost, url, nil)
 	if err != nil {
-		panic(fmt.Errorf("failed to make request: %w", err))
+		fmt.Println("failed to make request: %w", err)
+		return err
 	}
+	request.Header.Set("Content-Type", "text/plain")
 	response, err := client.Do(request)
 	if err != nil {
-		panic(fmt.Errorf("failed to send metric: %w", err))
+		fmt.Println("failed to send metric:", err) // просто логируем, не паникуем
+		return err
 	}
 	bodyBytes, err := io.ReadAll(response.Body)
 	if err != nil {
-		panic(fmt.Errorf("failed to read response: %w", err))
+		fmt.Println("failed to read response: %w", err)
+		return err
 	}
 	responseText := string(bodyBytes)
 	if response.StatusCode != 200 {
-		fmt.Println("Error sending metric:", response.StatusCode, "-", responseText)
+		fmt.Println("failed to send metric", response.StatusCode, "-", responseText)
 	}
 	err = response.Body.Close()
 	if err != nil {
-		panic(fmt.Errorf("failed to close response body: %w", err))
+		fmt.Println("failed to close response body: %w", err)
+		return err
 	}
 	return nil
 }
@@ -124,15 +126,19 @@ func main() {
 	client := &http.Client{}
 	fmt.Println("Start pooling...")
 	var poolCountValue int64 = 0
-	var iterationCounter int64 = 0
+	var iterationCounter int64 = 1
 	var metrics []models.Metrics
 	for {
 		if iterationCounter%poolInterval == 0 {
 			metrics = collectMetrics(&poolCountValue)
+			poolCountValue += 1
 		}
 		if iterationCounter%reportInterval == 0 {
 			for _, metric := range metrics {
-				sendMetric(client, metric)
+				err := sendMetric(client, metric)
+				if err != nil {
+					fmt.Printf("Failed to send metric %s: %s\n", metric.ID, err)
+				}
 			}
 		}
 		time.Sleep(time.Second)

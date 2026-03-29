@@ -10,8 +10,12 @@ import (
 )
 
 type Sender struct {
-	Client  *http.Client
-	BaseURL string
+	client  *http.Client
+	baseURL string
+}
+
+func NewSender(client *http.Client, baseUrl string) *Sender {
+	return &Sender{client, baseUrl}
 }
 
 func (s *Sender) SendMetric(metric models.Metrics) error {
@@ -24,14 +28,14 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 	default:
 		return fmt.Errorf("unknown metric type: %s", metric.MType)
 	}
-	url := fmt.Sprintf("%s/update/%s/%s/%s", s.BaseURL, metric.MType, metric.ID, stringValue)
+	url := fmt.Sprintf("%s/update/%s/%s/%s", s.baseURL, metric.MType, metric.ID, stringValue)
 	request, err := http.NewRequest(http.MethodPost, url, nil)
 	if err != nil {
 		fmt.Println("failed to make request:", err)
 		return err
 	}
 	request.Header.Set("Content-Type", "text/plain")
-	response, err := s.Client.Do(request)
+	response, err := s.client.Do(request)
 	if err != nil {
 		fmt.Println("failed to send metric:", err) // просто логируем, не паникуем
 		return err
@@ -39,7 +43,7 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 	defer response.Body.Close()
 	bodyBytes, err := io.ReadAll(response.Body)
 	if err != nil {
-		fmt.Println("failed to read response: %w", err)
+		fmt.Println("failed to read response:", err)
 		return err
 	}
 	responseText := string(bodyBytes)

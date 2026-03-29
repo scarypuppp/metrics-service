@@ -6,16 +6,16 @@ import (
 	"github.com/scarypuppp/metrics-service/internal/agent"
 )
 
-func main() {
-	collector := agent.Collector{}
-	sender := agent.Sender{
-		Client:  &http.Client{},
-		BaseURL: "http://127.0.0.1:8080",
-	}
+const poolInterval int64 = 2
+const reportInterval int64 = 10
 
-	newAgent := agent.Agent{
-		Collector: &collector,
-		Sender:    &sender,
-	}
+func main() {
+	client := http.Client{}
+	newAgent := agent.NewAgent(
+		agent.NewCollector(),
+		agent.NewSender(&client, "http://127.0.0.1:8080"),
+		poolInterval,
+		reportInterval,
+	)
 	newAgent.Run()
 }

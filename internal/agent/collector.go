@@ -9,6 +9,10 @@ import (
 
 type Collector struct{}
 
+func NewCollector() *Collector {
+	return &Collector{}
+}
+
 func (c *Collector) CollectMetrics(pollCountValue int64) []models.Metrics {
 	runtimeMetrics := getMemStats()
 	var returnMetrics []models.Metrics

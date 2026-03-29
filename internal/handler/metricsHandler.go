@@ -27,6 +27,8 @@ func CreateMetricHandler(metricService service.MetricService) http.HandlerFunc {
 		metricValue := req.PathValue("metricValue")
 		metric, createMeticErr := metricService.CreateMetric(metricName, metricType, metricValue)
 
+		fmt.Printf("GOT METRIC: %s %s %s\n", metricType, metricName, metricValue)
+
 		if createMeticErr != nil {
 			if errors.Is(createMeticErr, strconv.ErrSyntax) ||
 				errors.Is(createMeticErr, service.ErrInvalidMetricType) ||

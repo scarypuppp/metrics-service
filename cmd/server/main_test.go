@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/scarypuppp/metrics-service/internal/handler"
 	"github.com/scarypuppp/metrics-service/internal/model"
 	"github.com/scarypuppp/metrics-service/internal/repository"
@@ -12,6 +13,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func newRouter(metricService service.MetricService) http.Handler {
+	r := chi.NewRouter()
+	r.Post("/update/{metricType}/{metricName}/{metricValue}", handlers.UpdateMetricHandler(metricService))
+	return r
+}
 
 func TestCreateMetricHandler(t *testing.T) {
 	tests := []struct {
@@ -26,7 +33,7 @@ func TestCreateMetricHandler(t *testing.T) {
 			method:         http.MethodPost,
 			url:            "/update/gauge/temperature/36.6",
 			expectedStatus: http.StatusOK,
-			expectedBody:   "36.600000",
+			expectedBody:   "36.6",
 		},
 		{
 			name:           "valid counter metric",
@@ -55,20 +62,15 @@ func TestCreateMetricHandler(t *testing.T) {
 		},
 	}
 
-	storage := repository.MemStorage{Metrics: make(map[string]models.Metrics)}
-	metricService := service.MetricService{Storage: &storage}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
-			mux := http.NewServeMux()
-			mux.HandleFunc("/update/{metricType}/{metricName}/{metricValue}",
-				handlers.CreateMetricHandler(metricService))
+			storage := repository.MemStorage{Metrics: make(map[string]models.Metrics)}
+			metricService := service.MetricService{Storage: &storage}
 
 			req := httptest.NewRequest(tt.method, tt.url, nil)
 			rr := httptest.NewRecorder()
 
-			mux.ServeHTTP(rr, req)
+			newRouter(metricService).ServeHTTP(rr, req)
 
 			require.Equal(t, tt.expectedStatus, rr.Code)
 			if tt.expectedBody != "" {
@@ -81,40 +83,34 @@ func TestCreateMetricHandler(t *testing.T) {
 func TestCreateMetricHandler_GaugeOverwritesOnUpdate(t *testing.T) {
 	storage := repository.MemStorage{Metrics: make(map[string]models.Metrics)}
 	metricService := service.MetricService{Storage: &storage}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/update/{metricType}/{metricName}/{metricValue}",
-		handlers.CreateMetricHandler(metricService))
+	r := newRouter(metricService)
 
 	req := httptest.NewRequest(http.MethodPost, "/update/gauge/temperature/10.5", nil)
 	rr := httptest.NewRecorder()
-	mux.ServeHTTP(rr, req)
+	r.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	req = httptest.NewRequest(http.MethodPost, "/update/gauge/temperature/99.9", nil)
 	rr = httptest.NewRecorder()
-	mux.ServeHTTP(rr, req)
+	r.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 
-	assert.Contains(t, rr.Body.String(), "99.900000")
+	assert.Contains(t, rr.Body.String(), "99.9")
 }
 
 func TestCreateMetricHandler_CounterAccumulatesOnUpdate(t *testing.T) {
 	storage := repository.MemStorage{Metrics: make(map[string]models.Metrics)}
 	metricService := service.MetricService{Storage: &storage}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/update/{metricType}/{metricName}/{metricValue}",
-		handlers.CreateMetricHandler(metricService))
+	r := newRouter(metricService)
 
 	req := httptest.NewRequest(http.MethodPost, "/update/counter/hits/10", nil)
 	rr := httptest.NewRecorder()
-	mux.ServeHTTP(rr, req)
+	r.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	req = httptest.NewRequest(http.MethodPost, "/update/counter/hits/5", nil)
 	rr = httptest.NewRecorder()
-	mux.ServeHTTP(rr, req)
+	r.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	assert.Contains(t, rr.Body.String(), "15")
@@ -123,18 +119,15 @@ func TestCreateMetricHandler_CounterAccumulatesOnUpdate(t *testing.T) {
 func TestCreateMetricHandler_MetricTypeConflictReturnsError(t *testing.T) {
 	storage := repository.MemStorage{Metrics: make(map[string]models.Metrics)}
 	metricService := service.MetricService{Storage: &storage}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/update/{metricType}/{metricName}/{metricValue}",
-		handlers.CreateMetricHandler(metricService))
+	r := newRouter(metricService)
 
 	req := httptest.NewRequest(http.MethodPost, "/update/gauge/temperature/36.6", nil)
 	rr := httptest.NewRecorder()
-	mux.ServeHTTP(rr, req)
+	r.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	req = httptest.NewRequest(http.MethodPost, "/update/counter/temperature/10", nil)
 	rr = httptest.NewRecorder()
-	mux.ServeHTTP(rr, req)
+	r.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }

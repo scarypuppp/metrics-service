@@ -1,0 +1,28 @@
+package handlers
+
+import (
+	"github.com/go-chi/chi/v5"
+	"github.com/scarypuppp/metrics-service/internal/repository"
+	"github.com/scarypuppp/metrics-service/internal/service"
+)
+
+func GetAppRouter() chi.Router {
+	r := chi.NewRouter()
+
+	storage := repository.NewMemStorage()
+	metricService := service.MetricService{Storage: storage}
+
+	r.Route("/", func(r chi.Router) {
+		r.Get("/", RetrieveMetricsHandler(metricService))
+
+		r.Route("/value", func(r chi.Router) {
+			r.Get("/{metricType}/{metricName}", GetMetricHandler(metricService))
+		})
+
+		r.Route("/update", func(r chi.Router) {
+			r.Post("/{metricType}/{metricName}/{metricValue}", UpdateMetricHandler(metricService))
+		})
+	})
+
+	return r
+}

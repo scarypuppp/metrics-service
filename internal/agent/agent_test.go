@@ -71,7 +71,7 @@ func TestAgent_SendsCollectedMetrics(t *testing.T) {
 
 	for _, m := range sender.sent {
 		if m.ID == "TestGauge" {
-			return // нашли нужную метрику
+			return
 		}
 	}
 	t.Error("expected TestGauge to be sent, not found")

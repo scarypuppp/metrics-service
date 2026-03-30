@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 
 	models "github.com/scarypuppp/metrics-service/internal/model"
 )
@@ -19,16 +18,7 @@ func NewSender(client *http.Client, baseUrl string) *Sender {
 }
 
 func (s *Sender) SendMetric(metric models.Metrics) error {
-	var stringValue = ""
-	switch metric.MType {
-	case models.Gauge:
-		stringValue = strconv.FormatFloat(*metric.Value, 'f', -1, 64)
-	case models.Counter:
-		stringValue = strconv.FormatInt(*metric.Delta, 10)
-	default:
-		return fmt.Errorf("unknown metric type: %s", metric.MType)
-	}
-	url := fmt.Sprintf("%s/update/%s/%s/%s", s.baseURL, metric.MType, metric.ID, stringValue)
+	url := fmt.Sprintf("%s/update/%s/%s/%s", s.baseURL, metric.MType, metric.ID, metric.StringValue())
 	request, err := http.NewRequest(http.MethodPost, url, nil)
 	if err != nil {
 		fmt.Println("failed to make request:", err)
@@ -37,7 +27,7 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 	request.Header.Set("Content-Type", "text/plain")
 	response, err := s.client.Do(request)
 	if err != nil {
-		fmt.Println("failed to send metric:", err) // просто логируем, не паникуем
+		fmt.Println("failed to send metric:", err)
 		return err
 	}
 	defer response.Body.Close()

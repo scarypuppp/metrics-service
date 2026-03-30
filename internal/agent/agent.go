@@ -43,6 +43,7 @@ func (p *Agent) Run() {
 		}
 		if iterationCounter%p.reportInterval == 0 {
 			p.handlerSendMetrics(metrics)
+			poolCountValue = 0
 		}
 		time.Sleep(time.Second)
 		iterationCounter++

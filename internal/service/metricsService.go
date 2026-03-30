@@ -2,28 +2,44 @@ package service
 
 import (
 	"errors"
+	"sort"
 	"strconv"
 
 	models "github.com/scarypuppp/metrics-service/internal/model"
-	"github.com/scarypuppp/metrics-service/internal/repository"
 )
 
 var ErrInvalidMetricType = errors.New("invalid metric type provided")
 var ErrMetricTypeMismatch = errors.New("metric with such name already exists with other type")
+var ErrMetricNameNotExist = errors.New("metric with such does not exist")
+
+type IMemStorage interface {
+	All() *[]models.Metrics
+	GetByName(id string) *models.Metrics
+	Set(metric *models.Metrics) error
+}
 
 type MetricService struct {
-	Storage repository.IMemStorage
+	Storage IMemStorage
 }
 
-type IMetricService interface {
-	CreateMetric(name string, MType string, stringValue string) (*models.Metrics, error)
+func (ms *MetricService) GetAllMetrics() *[]models.Metrics {
+	metrics := *ms.Storage.All()
+	sort.Slice(metrics, func(i, j int) bool {
+		return metrics[i].ID < metrics[j].ID
+	})
+	return &metrics
 }
 
-func (ms *MetricService) CreateMetric(name string, MType string, stringValue string) (*models.Metrics, error) {
+func (ms *MetricService) GetByName(id string) (*models.Metrics, error) {
+	metric := ms.Storage.GetByName(id)
+	if metric == nil {
+		return nil, ErrMetricNameNotExist
+	}
+	return metric, nil
+}
 
-	metric := (*models.Metrics)(nil)
-
-	existingMetric := ms.Storage.GetMetric(name)
+func (ms *MetricService) UpdateMetric(name string, MType string, stringValue string) (*models.Metrics, error) {
+	existingMetric := ms.Storage.GetByName(name)
 
 	if existingMetric != nil && existingMetric.MType != MType {
 		return nil, ErrMetricTypeMismatch
@@ -36,16 +52,19 @@ func (ms *MetricService) CreateMetric(name string, MType string, stringValue str
 		}
 		if existingMetric != nil {
 			existingMetric.Value = &value
-			return existingMetric, nil
+		} else {
+			existingMetric = &models.Metrics{
+				ID:    name,
+				MType: MType,
+				Value: &value,
+			}
 		}
+		err = ms.Storage.Set(existingMetric)
+		if err != nil {
+			return nil, err
+		}
+		return existingMetric, nil
 
-		metric = &models.Metrics{
-			ID:    name,
-			MType: MType,
-			Delta: nil,
-			Value: &value,
-			Hash:  "",
-		}
 	} else if MType == models.Counter {
 		value, err := strconv.ParseInt(stringValue, 10, 64)
 		if err != nil {
@@ -53,24 +72,19 @@ func (ms *MetricService) CreateMetric(name string, MType string, stringValue str
 		}
 		if existingMetric != nil {
 			*existingMetric.Delta += value
-			return existingMetric, nil
+		} else {
+			existingMetric = &models.Metrics{
+				ID:    name,
+				MType: MType,
+				Delta: &value,
+			}
 		}
-
-		metric = &models.Metrics{
-			ID:    name,
-			MType: MType,
-			Delta: &value,
-			Value: nil,
-			Hash:  "",
+		err = ms.Storage.Set(existingMetric)
+		if err != nil {
+			return nil, err
 		}
+		return existingMetric, nil
 	} else {
 		return nil, ErrInvalidMetricType
 	}
-
-	err := ms.Storage.SetMetric(metric)
-	if err != nil {
-		return nil, err
-	}
-
-	return metric, nil
 }

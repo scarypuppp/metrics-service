@@ -45,7 +45,8 @@ func (ms *MetricService) UpdateMetric(name string, MType string, stringValue str
 		return nil, ErrMetricTypeMismatch
 	}
 
-	if MType == models.Gauge {
+	switch MType {
+	case models.Gauge:
 		value, err := strconv.ParseFloat(stringValue, 64)
 		if err != nil {
 			return nil, err
@@ -64,8 +65,7 @@ func (ms *MetricService) UpdateMetric(name string, MType string, stringValue str
 			return nil, err
 		}
 		return existingMetric, nil
-
-	} else if MType == models.Counter {
+	case models.Counter:
 		value, err := strconv.ParseInt(stringValue, 10, 64)
 		if err != nil {
 			return nil, err
@@ -84,7 +84,7 @@ func (ms *MetricService) UpdateMetric(name string, MType string, stringValue str
 			return nil, err
 		}
 		return existingMetric, nil
-	} else {
+	default:
 		return nil, ErrInvalidMetricType
 	}
 }

@@ -1,9 +1,10 @@
-package agent
+package main
 
 import (
 	"testing"
 	"time"
 
+	"github.com/scarypuppp/metrics-service/internal/agent"
 	models "github.com/scarypuppp/metrics-service/internal/model"
 )
 
@@ -37,7 +38,7 @@ func TestAgent_CollectsOnPollInterval(t *testing.T) {
 	collector := &mockCollector{}
 	sender := &mockSender{}
 
-	a := NewAgent(collector, sender, 1, 999)
+	a := agent.NewAgent(collector, sender, 1, 999)
 	go a.Run()
 	time.Sleep(3 * time.Second)
 
@@ -50,7 +51,7 @@ func TestAgent_SendsOnReportInterval(t *testing.T) {
 	collector := &mockCollector{}
 	sender := &mockSender{}
 
-	a := NewAgent(collector, sender, 1, 2)
+	a := agent.NewAgent(collector, sender, 1, 2)
 
 	go a.Run()
 	time.Sleep(3 * time.Second)
@@ -64,7 +65,7 @@ func TestAgent_SendsCollectedMetrics(t *testing.T) {
 	collector := &mockCollector{}
 	sender := &mockSender{}
 
-	a := NewAgent(collector, sender, 1, 2)
+	a := agent.NewAgent(collector, sender, 1, 2)
 
 	go a.Run()
 	time.Sleep(3 * time.Second)

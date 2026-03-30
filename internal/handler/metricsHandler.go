@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/scarypuppp/metrics-service/internal/service"
@@ -21,14 +20,14 @@ func RetrieveMetricsHandler(metricService service.MetricService) http.HandlerFun
 		}
 		// Формирование ответа
 		metrics := *metricService.GetAllMetrics()
-		formattedMetrics := "<ul>"
+		formattedMetrics := "<pre style=\"word-wrap: break-word; white-space: pre-wrap;\">"
 
 		for _, m := range metrics {
-			formattedMetrics += fmt.Sprintf("<li>%s (%s): %s</li>", m.ID, m.MType, m.StringValue())
+			formattedMetrics += fmt.Sprintf("# HELP %s\n# TYPE %s %s\n%s %s\n", m.ID, m.ID, m.MType, m.ID, m.StringValue())
 		}
-		formattedMetrics += "</ul>"
+		formattedMetrics += "</pre>"
 
-		content := fmt.Sprintf("<html><body><h1>Метрики:</h1>%s</body></html>", formattedMetrics)
+		content := fmt.Sprintf(`<html><head><meta name="color-scheme" content="light dark"></head><body>%s</body></html>`, formattedMetrics)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(content))
@@ -42,14 +41,14 @@ func GetMetricHandler(metricService service.MetricService) http.HandlerFunc {
 			http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 			return
 		}
-		metricType := strings.ToLower(chi.URLParam(req, "metricType"))
-		metricName := strings.ToLower(chi.URLParam(req, "metricName"))
+		metricType := chi.URLParam(req, "metricType")
+		metricName := chi.URLParam(req, "metricName")
 		if metricName == "" || metricType == "" {
 			http.Error(w, "metricName and metricType is required", http.StatusNotFound)
 			return
 		}
 
-		// Получение матрики
+		// Получение метрики
 		metric, getMetricErr := metricService.GetByName(metricName)
 		if getMetricErr != nil {
 			if errors.Is(getMetricErr, service.ErrMetricNameNotExist) {
@@ -74,15 +73,15 @@ func UpdateMetricHandler(metricService service.MetricService) http.HandlerFunc {
 			http.Error(w, "Only POST requests are allowed!", http.StatusMethodNotAllowed)
 			return
 		}
-		metricType := strings.ToLower(chi.URLParam(req, "metricType"))
-		metricName := strings.ToLower(chi.URLParam(req, "metricName"))
+		metricType := chi.URLParam(req, "metricType")
+		metricName := chi.URLParam(req, "metricName")
 		if metricName == "" || metricType == "" {
 			http.Error(w, "metricName and metricType is required", http.StatusNotFound)
 			return
 		}
 
 		// Обновление/создание метрики
-		metricValue := strings.ToLower(chi.URLParam(req, "metricValue"))
+		metricValue := chi.URLParam(req, "metricValue")
 		metric, createMeticErr := metricService.UpdateMetric(metricName, metricType, metricValue)
 
 		fmt.Printf("GOT METRIC: %s %s %s\n", metricType, metricName, metricValue)

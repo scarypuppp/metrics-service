@@ -60,6 +60,7 @@ func (p *Agent) handlerSendMetrics(metrics []models.Metrics) {
 		err := p.sender.SendMetric(metric)
 		if err != nil {
 			fmt.Printf("Failed to send metric %s: %s\n", metric.ID, err)
+			break
 		}
 	}
 }

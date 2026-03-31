@@ -12,7 +12,6 @@ import (
 
 func RetrieveMetricsHandler(metricService service.MetricService) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		fmt.Println("Request received")
 		// Обработка запроса
 		if req.Method != http.MethodGet {
 			http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)

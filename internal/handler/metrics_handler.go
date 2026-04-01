@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -17,10 +18,10 @@ func RetrieveMetricsHandler(metricService service.MetricService) http.HandlerFun
 			http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 			return
 		}
-		// Формирование ответа
-		metrics := *metricService.GetAllMetrics()
+		//Получение метрик
+		metrics := metricService.GetAllMetrics()
 		formattedMetrics := "<pre style=\"word-wrap: break-word; white-space: pre-wrap;\">"
-
+		// Формирование ответа
 		for _, m := range metrics {
 			formattedMetrics += fmt.Sprintf("# HELP %s\n# TYPE %s %s\n%s %s\n", m.ID, m.ID, m.MType, m.ID, m.StringValue())
 		}
@@ -43,17 +44,18 @@ func GetMetricHandler(metricService service.MetricService) http.HandlerFunc {
 		metricType := chi.URLParam(req, "metricType")
 		metricName := chi.URLParam(req, "metricName")
 		if metricName == "" || metricType == "" {
-			http.Error(w, "metricName and metricType is required", http.StatusNotFound)
+			http.Error(w, "metricName and metricType is required", http.StatusBadRequest)
 			return
 		}
 
 		// Получение метрики
 		metric, getMetricErr := metricService.GetByName(metricName)
 		if getMetricErr != nil {
-			if errors.Is(getMetricErr, service.ErrMetricNameNotExist) {
+			switch {
+			case errors.Is(getMetricErr, service.ErrMetricNameNotExist):
 				http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-			} else {
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			default:
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusBadRequest)
 			}
 			return
 		}
@@ -83,14 +85,19 @@ func UpdateMetricHandler(metricService service.MetricService) http.HandlerFunc {
 		metricValue := chi.URLParam(req, "metricValue")
 		metric, createMeticErr := metricService.UpdateMetric(metricName, metricType, metricValue)
 
-		fmt.Printf("GOT METRIC: %s %s %s\n", metricType, metricName, metricValue)
+		slog.Info("GOT METRIC", "type", metricType, "name", metricName, "value", metricValue)
 		if createMeticErr != nil {
-			if errors.Is(createMeticErr, strconv.ErrSyntax) ||
-				errors.Is(createMeticErr, service.ErrInvalidMetricType) ||
-				errors.Is(createMeticErr, service.ErrMetricTypeMismatch) {
+			switch {
+			case errors.Is(createMeticErr, strconv.ErrSyntax):
 				errorMessage := fmt.Sprintf("%s", createMeticErr)
 				http.Error(w, errorMessage, http.StatusBadRequest)
-			} else {
+			case errors.Is(createMeticErr, service.ErrInvalidMetricType):
+				errorMessage := fmt.Sprintf("%s", createMeticErr)
+				http.Error(w, errorMessage, http.StatusBadRequest)
+			case errors.Is(createMeticErr, service.ErrMetricTypeMismatch):
+				errorMessage := fmt.Sprintf("%s", createMeticErr)
+				http.Error(w, errorMessage, http.StatusBadRequest)
+			default:
 				errorMessage := fmt.Sprintf("Error creating metric: %s", createMeticErr)
 				http.Error(w, errorMessage, http.StatusInternalServerError)
 			}

@@ -1,11 +1,16 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"regexp"
+	"syscall"
+	"time"
 
 	"github.com/scarypuppp/metrics-service/internal/handler"
 )
@@ -32,7 +37,39 @@ func main() {
 		return nil
 	})
 	flag.Parse()
-	fmt.Printf("Listening on %s\n", serverOptions.addr)
+	log.Printf("Listening on %s\n", serverOptions.addr)
 	router := handlers.GetAppRouter()
-	log.Fatal(http.ListenAndServe(serverOptions.addr, router))
+
+	srv := &http.Server{
+		Addr:         serverOptions.addr,
+		Handler:      router,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	// Запуск сервера
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed: %v", err)
+		}
+	}()
+
+	log.Printf("Server started on %s", serverOptions.addr)
+
+	// Graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatal("Server forced to shutdown:", err)
+	}
+
+	log.Println("Server stopped gracefully")
+
 }

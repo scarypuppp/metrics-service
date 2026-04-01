@@ -13,7 +13,7 @@ var ErrMetricTypeMismatch = errors.New("metric with such name already exists wit
 var ErrMetricNameNotExist = errors.New("metric with such does not exist")
 
 type IMemStorage interface {
-	All() *[]models.Metrics
+	All() []models.Metrics
 	GetByName(id string) *models.Metrics
 	Set(metric *models.Metrics) error
 }
@@ -22,12 +22,12 @@ type MetricService struct {
 	Storage IMemStorage
 }
 
-func (ms *MetricService) GetAllMetrics() *[]models.Metrics {
-	metrics := *ms.Storage.All()
+func (ms *MetricService) GetAllMetrics() []models.Metrics {
+	metrics := ms.Storage.All()
 	sort.Slice(metrics, func(i, j int) bool {
 		return metrics[i].ID < metrics[j].ID
 	})
-	return &metrics
+	return metrics
 }
 
 func (ms *MetricService) GetByName(id string) (*models.Metrics, error) {

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/scarypuppp/metrics-service/internal/handler"
 	"github.com/scarypuppp/metrics-service/internal/model"
 	"github.com/scarypuppp/metrics-service/internal/repository"
@@ -16,6 +17,7 @@ import (
 
 func newRouter(metricService service.MetricService) http.Handler {
 	r := chi.NewRouter()
+	r.Use(middleware.Logger)
 	r.Post("/update/{metricType}/{metricName}/{metricValue}", handlers.UpdateMetricHandler(metricService))
 	return r
 }

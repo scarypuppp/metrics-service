@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"time"
 
 	"github.com/scarypuppp/metrics-service/internal/agent"
 )
@@ -40,10 +41,17 @@ func main() {
 	flag.Int64Var(&agentOptions.reportInterval, "r", 10, "report interval in seconds")
 	flag.Parse()
 
-	client := http.Client{}
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
+		},
+	}
 	newAgent := agent.NewAgent(
 		agent.NewCollector(),
-		agent.NewSender(&client, agentOptions.serverAddr),
+		agent.NewSender(client, agentOptions.serverAddr),
 		agentOptions.poolInterval,
 		agentOptions.reportInterval,
 	)

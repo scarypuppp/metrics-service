@@ -7,17 +7,18 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/caarlos0/env/v6"
 	"github.com/scarypuppp/metrics-service/internal/agent"
 )
 
 var agentOptions struct {
-	serverAddr     string
-	poolInterval   int64
-	reportInterval int64
+	serverAddr     string `env:"ADDRESS"`
+	poolInterval   int64  `env:"REPORT_INTERVAL"`
+	reportInterval int64  `env:"POLL_INTERVAL"`
 }
 
-func main() {
-	agentOptions.serverAddr = "https://localhost:8080"
+func setupConfig() error {
+	agentOptions.serverAddr = "http://localhost:8080" // Значение адреса по умолчанию
 	flag.Func("a", "server address host:port", func(flagValue string) error {
 		expr, err := regexp.Compile(`^(https?://)?(localhost|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d{2,5})$`)
 		if err != nil {
@@ -40,6 +41,20 @@ func main() {
 	flag.Int64Var(&agentOptions.poolInterval, "p", 2, "pool interval in seconds")
 	flag.Int64Var(&agentOptions.reportInterval, "r", 10, "report interval in seconds")
 	flag.Parse()
+	err := env.Parse(&agentOptions)
+
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func main() {
+
+	err := setupConfig()
+	if err != nil {
+		panic(err)
+	}
 
 	client := &http.Client{
 		Timeout: 30 * time.Second,

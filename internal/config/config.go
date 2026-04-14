@@ -34,7 +34,7 @@ func GetConfig() (*Config, error) {
 		return nil, err
 	}
 	if config.Addr == "" {
-		flag.StringVar(&config.Addr, "p", defaultAddr, "server address host:port")
+		flag.StringVar(&config.Addr, "a", defaultAddr, "server address host:port")
 	}
 	flag.Parse()
 

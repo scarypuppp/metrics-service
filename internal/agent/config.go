@@ -43,7 +43,7 @@ func GetConfig() (*Config, error) {
 	}
 
 	if config.ServerAddr == "" {
-		flag.StringVar(&config.ServerAddr, "p", defaultServerAddr, "server address host:port")
+		flag.StringVar(&config.ServerAddr, "a", defaultServerAddr, "server address host:port")
 	}
 	if config.PoolInterval == 0 {
 		flag.Int64Var(&config.PoolInterval, "p", defaultPoolInterval, "pool interval in seconds")

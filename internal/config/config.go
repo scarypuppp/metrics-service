@@ -9,14 +9,14 @@ import (
 )
 
 const (
-	defaultAddr = ":8080"
+	defaultAddr = "localhost:8080"
 )
 
 type Config struct {
 	Addr string `env:"ADDRESS"        `
 }
 
-var addrRegexp = regexp.MustCompile(`^(https?://)?(localhost|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d{2,5})$`)
+var addrRegexp = regexp.MustCompile(`^(https?://)?(localhost|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})?:(\d{2,5})$`)
 
 func parseAddr(value string) (string, error) {
 	matches := addrRegexp.FindStringSubmatch(value)

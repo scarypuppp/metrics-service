@@ -1,3 +1,5 @@
+.SILENT: export-server-env export-agent-env export-env
+
 env-server:
 	cp .env.agent.example .env.agent
 
@@ -14,18 +16,9 @@ build-agent:
 
 build: build-server build-agent
 
-export-agent-env:
-	export $(cat .env.agent | xargs)
-
-export-server-env:
-	export $(cat .env.server | xargs)
-
-export-env: export-server-env export-agent-env
-
 run-server:
-	$(MAKE) export-server-env
-	go run ./cmd/server/main.go
+	@export $(shell cat .env.server | xargs) && go run ./cmd/server/main.go
+
 
 run-agent:
-	$(MAKE) export-agent-env
-	go run ./cmd/agent/main.go
+	@export $(shell cat .env.agent | xargs) && go run ./cmd/agent/main.go

@@ -2,77 +2,28 @@ package main
 
 import (
 	"context"
-	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"regexp"
 	"syscall"
 	"time"
 
-	"github.com/caarlos0/env/v6"
+	"github.com/scarypuppp/metrics-service/internal/config"
 	"github.com/scarypuppp/metrics-service/internal/handler"
 )
 
-var serverOptions struct {
-	addr string
-}
-
-func setupConfig() error {
-	serverOptions.addr = "localhost:8080" // Значение адреса по умолчанию
-	flag.Func("a", "server address host:port", func(flagValue string) error {
-		expr, err := regexp.Compile(`^(https?://)?(localhost|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d{2,5})$`)
-		if err != nil {
-			return err
-		}
-		matches := expr.FindStringSubmatch(flagValue)
-		if matches == nil {
-			return fmt.Errorf("invalid address: %s", flagValue)
-		}
-		scheme := matches[1]
-		if scheme == "" {
-			scheme = "http://"
-		}
-		host := matches[2]
-		port := matches[3]
-		resultAddress := fmt.Sprintf("%s%s:%s", scheme, host, port)
-		serverOptions.addr = resultAddress
-		return nil
-	})
-	flag.Parse()
-	err := env.Parse(&serverOptions)
-
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func main() {
-	serverOptions.addr = "localhost:8080"
-	flag.Func("a", "server address host:port", func(flagValue string) error {
-		expr, err := regexp.Compile(`^(localhost|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d{2,5})$`)
-		if err != nil {
-			return err
-		}
-		matches := expr.FindStringSubmatch(flagValue)
-		if matches == nil {
-			return fmt.Errorf("invalid address: %s", flagValue)
-		}
-		host := matches[1]
-		port := matches[2]
-		resultAddress := fmt.Sprintf("%s:%s", host, port)
-		serverOptions.addr = resultAddress
-		return nil
-	})
-	flag.Parse()
-	log.Printf("Listening on %s\n", serverOptions.addr)
+	serverConfig, err := config.GetConfig()
+	if err != nil {
+		panic(err)
+	}
+
+	log.Printf("Listening on %s\n", serverConfig.Addr)
 	router := handlers.GetAppRouter()
 
 	srv := &http.Server{
-		Addr:         serverOptions.addr,
+		Addr:         serverConfig.Addr,
 		Handler:      router,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -86,7 +37,7 @@ func main() {
 		}
 	}()
 
-	log.Printf("Server started on %s", serverOptions.addr)
+	log.Printf("Server started on %s", serverConfig.Addr)
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)

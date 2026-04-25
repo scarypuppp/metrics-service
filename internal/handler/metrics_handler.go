@@ -3,7 +3,6 @@ package handlers
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -85,7 +84,6 @@ func UpdateMetricHandler(metricService service.MetricService) http.HandlerFunc {
 		metricValue := chi.URLParam(req, "metricValue")
 		metric, createMeticErr := metricService.UpdateMetric(metricName, metricType, metricValue)
 
-		slog.Info("GOT METRIC", "type", metricType, "name", metricName, "value", metricValue)
 		if createMeticErr != nil {
 			switch {
 			case errors.Is(createMeticErr, strconv.ErrSyntax):

@@ -11,6 +11,7 @@ import (
 
 	"github.com/scarypuppp/metrics-service/internal/config"
 	"github.com/scarypuppp/metrics-service/internal/handler"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -21,6 +22,13 @@ func main() {
 
 	log.Printf("Listening on %s\n", serverConfig.Addr)
 	router := handlers.GetAppRouter()
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+	defer logger.Sync()
+	zap.ReplaceGlobals(logger)
 
 	srv := &http.Server{
 		Addr:         serverConfig.Addr,

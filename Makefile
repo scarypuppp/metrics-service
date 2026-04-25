@@ -17,8 +17,8 @@ build-agent:
 build: build-server build-agent
 
 run-server:
-	@export $(shell cat .env.server | xargs) && go run ./cmd/server/main.go
+	go run ./cmd/server/main.go
 
 
 run-agent:
-	@export $(shell cat .env.agent | xargs) && go run ./cmd/agent/main.go
+	go run ./cmd/agent/main.go

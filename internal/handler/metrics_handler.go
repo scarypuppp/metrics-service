@@ -1,12 +1,15 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	models "github.com/scarypuppp/metrics-service/internal/model"
 	"github.com/scarypuppp/metrics-service/internal/service"
 )
 
@@ -33,7 +36,7 @@ func RetrieveMetricsHandler(metricService service.MetricService) http.HandlerFun
 	}
 }
 
-func GetMetricHandler(metricService service.MetricService) http.HandlerFunc {
+func GetMetricByURLHandler(metricService service.MetricService) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		//Обработка запроса
 		if req.Method != http.MethodGet {
@@ -66,7 +69,40 @@ func GetMetricHandler(metricService service.MetricService) http.HandlerFunc {
 	}
 }
 
-func UpdateMetricHandler(metricService service.MetricService) http.HandlerFunc {
+func GetMetricHandler(metricService service.MetricService) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		var metric models.Metrics
+		var buffer bytes.Buffer
+		_, err := buffer.ReadFrom(req.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err = json.Unmarshal(buffer.Bytes(), &metric); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// Получение метрики
+		existingMetric, getMetricErr := metricService.GetByName(metric.ID)
+		if getMetricErr != nil {
+			switch {
+			case errors.Is(getMetricErr, service.ErrMetricNameNotExist):
+				http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			default:
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusBadRequest)
+			}
+			return
+		}
+
+		responseData, err := json.Marshal(existingMetric)
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		w.Write(responseData)
+	}
+}
+
+func UpdateMetricByURLHandler(metricService service.MetricService) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		//Обработка запроса
 		if req.Method != http.MethodPost {
@@ -82,7 +118,7 @@ func UpdateMetricHandler(metricService service.MetricService) http.HandlerFunc {
 
 		// Обновление/создание метрики
 		metricValue := chi.URLParam(req, "metricValue")
-		metric, createMeticErr := metricService.UpdateMetric(metricName, metricType, metricValue)
+		metric, createMeticErr := metricService.UpsertMetric(metricName, metricType, metricValue)
 
 		if createMeticErr != nil {
 			switch {
@@ -106,5 +142,43 @@ func UpdateMetricHandler(metricService service.MetricService) http.HandlerFunc {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(metric.StringValue()))
+	}
+}
+
+func UpdateMetricHandler(metricService service.MetricService) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		var metric models.Metrics
+		var buffer bytes.Buffer
+		_, err := buffer.ReadFrom(req.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err = json.Unmarshal(buffer.Bytes(), &metric); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// Обновление/создание метрики
+		_, createMeticErr := metricService.UpsertMetric(metric.ID, metric.MType, metric.StringValue())
+
+		if createMeticErr != nil {
+			switch {
+			case errors.Is(createMeticErr, strconv.ErrSyntax):
+				errorMessage := fmt.Sprintf("%s", createMeticErr)
+				http.Error(w, errorMessage, http.StatusBadRequest)
+			case errors.Is(createMeticErr, service.ErrInvalidMetricType):
+				errorMessage := fmt.Sprintf("%s", createMeticErr)
+				http.Error(w, errorMessage, http.StatusBadRequest)
+			case errors.Is(createMeticErr, service.ErrMetricTypeMismatch):
+				errorMessage := fmt.Sprintf("%s", createMeticErr)
+				http.Error(w, errorMessage, http.StatusBadRequest)
+			default:
+				errorMessage := fmt.Sprintf("Error creating metric: %s", createMeticErr)
+				http.Error(w, errorMessage, http.StatusInternalServerError)
+			}
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	}
 }

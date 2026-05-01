@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,8 +20,11 @@ func NewSender(client *http.Client, baseUrl string) *Sender {
 }
 
 func (s *Sender) SendMetric(metric models.Metrics) error {
-	url := fmt.Sprintf("%s/update/%s/%s/%s", s.baseURL, metric.MType, metric.ID, metric.StringValue())
-	request, err := http.NewRequest(http.MethodPost, url, nil)
+	url := fmt.Sprintf("%s/update/", s.baseURL)
+
+	body, err := json.Marshal(metric)
+
+	request, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
 	if err != nil {
 		fmt.Println("failed to make request:", err)
 		return err

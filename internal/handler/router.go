@@ -18,13 +18,13 @@ func GetAppRouter() chi.Router {
 
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", RetrieveMetricsHandler(metricService))
-
 		r.Route("/value", func(r chi.Router) {
-			r.Get("/{metricType}/{metricName}", GetMetricHandler(metricService))
+			r.Post("/", GetMetricHandler(metricService))
+			r.Get("/{metricType}/{metricName}", GetMetricByURLHandler(metricService))
 		})
-
 		r.Route("/update", func(r chi.Router) {
-			r.Post("/{metricType}/{metricName}/{metricValue}", UpdateMetricHandler(metricService))
+			r.Post("/", UpdateMetricHandler(metricService))
+			r.Post("/{metricType}/{metricName}/{metricValue}", UpdateMetricByURLHandler(metricService))
 		})
 	})
 

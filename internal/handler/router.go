@@ -14,6 +14,8 @@ func GetAppRouter() chi.Router {
 	metricService := service.MetricService{Storage: storage}
 
 	r.Use(middlewares.LogResponse)
+	r.Use(middlewares.CompressResponse)
+	r.Use(middlewares.DecompressRequest)
 	r.Use(middlewares.LogRequest)
 
 	r.Route("/", func(r chi.Router) {

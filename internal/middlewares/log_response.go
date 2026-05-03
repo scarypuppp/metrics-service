@@ -30,7 +30,6 @@ func (response *loggingResponseWriter) WriteHeader(statusCode int) {
 
 func LogResponse(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 		responseData := &responseData{
 			status: 0,
 			size:   0,

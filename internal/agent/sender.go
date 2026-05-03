@@ -2,6 +2,7 @@ package agent
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -23,13 +24,30 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 	url := fmt.Sprintf("%s/update/", s.baseURL)
 
 	body, err := json.Marshal(metric)
+	if err != nil {
+		fmt.Println("failed make json:", err)
+	}
+	var b bytes.Buffer
+	gz, err := gzip.NewWriterLevel(&b, gzip.BestSpeed)
+	if err != nil {
+		fmt.Println("failed to compress data:", err)
+	}
+	_, err = gz.Write(body)
+	if err != nil {
+		fmt.Println("failed to write compressed data:", err)
+	}
+	err = gz.Close()
+	if err != nil {
+		fmt.Println("failed to compress data:", err)
+	}
 
-	request, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
+	request, err := http.NewRequest(http.MethodPost, url, &b)
 	if err != nil {
 		fmt.Println("failed to make request:", err)
 		return err
 	}
 	request.Header.Set("Content-Type", "text/plain")
+	request.Header.Set("Content-Encoding", "gzip")
 	response, err := s.client.Do(request)
 	if err != nil {
 		fmt.Println("failed to send metric:", err)

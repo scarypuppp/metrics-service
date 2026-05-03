@@ -3,15 +3,13 @@ package handlers
 import (
 	"github.com/go-chi/chi/v5"
 	"github.com/scarypuppp/metrics-service/internal/middlewares"
-	"github.com/scarypuppp/metrics-service/internal/repository"
 	"github.com/scarypuppp/metrics-service/internal/service"
 )
 
-func GetAppRouter() chi.Router {
+func GetAppRouter(
+	metricService service.MetricService,
+) chi.Router {
 	r := chi.NewRouter()
-
-	storage := repository.NewMemStorage()
-	metricService := service.MetricService{Storage: storage}
 
 	r.Use(middlewares.LogResponse)
 	r.Use(middlewares.CompressResponse)

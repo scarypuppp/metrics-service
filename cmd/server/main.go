@@ -11,6 +11,8 @@ import (
 
 	"github.com/scarypuppp/metrics-service/internal/config"
 	"github.com/scarypuppp/metrics-service/internal/handler"
+	"github.com/scarypuppp/metrics-service/internal/repository"
+	"github.com/scarypuppp/metrics-service/internal/service"
 	"go.uber.org/zap"
 )
 
@@ -21,7 +23,28 @@ func main() {
 	}
 
 	log.Printf("Listening on %s\n", serverConfig.Addr)
-	router := handlers.GetAppRouter()
+
+	storage := repository.NewMemStorage(serverConfig.FileStoragePath, serverConfig.StoreInterval == 0)
+
+	if *serverConfig.Restore {
+		if err := storage.RestoreFromFile(); err != nil {
+			log.Println("failed to restore metrics:", err)
+		}
+	}
+	if serverConfig.StoreInterval > 0 {
+		go func() {
+			ticker := time.NewTicker(time.Duration(serverConfig.StoreInterval) * time.Second)
+			defer ticker.Stop()
+			for range ticker.C {
+				if err := storage.SaveToFile(); err != nil {
+					log.Println("failed to save metrics:", err)
+				}
+			}
+		}()
+	}
+
+	metricService := service.MetricService{Storage: storage}
+	router := handlers.GetAppRouter(metricService)
 
 	logger, err := zap.NewDevelopment()
 	if err != nil {

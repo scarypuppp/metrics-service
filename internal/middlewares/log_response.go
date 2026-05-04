@@ -30,16 +30,12 @@ func (response *loggingResponseWriter) WriteHeader(statusCode int) {
 
 func LogResponse(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		responseData := &responseData{
-			status: 0,
-			size:   0,
-		}
+		responseData := &responseData{}
 		lw := loggingResponseWriter{
 			ResponseWriter: w,
 			responseData:   responseData,
 		}
 		handler.ServeHTTP(&lw, r)
-
 		zap.S().Infow("response",
 			"status", responseData.status,
 			"size", responseData.size,

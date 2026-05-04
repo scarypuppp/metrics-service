@@ -57,7 +57,7 @@ func GetMetricByURLHandler(metricService service.MetricService) http.HandlerFunc
 			case errors.Is(getMetricErr, service.ErrMetricNameNotExist):
 				http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 			default:
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusBadRequest)
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			}
 			return
 		}
@@ -90,7 +90,7 @@ func GetMetricHandler(metricService service.MetricService) http.HandlerFunc {
 			case errors.Is(getMetricErr, service.ErrMetricNameNotExist):
 				http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 			default:
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusBadRequest)
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			}
 			return
 		}

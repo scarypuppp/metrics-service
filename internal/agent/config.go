@@ -28,7 +28,6 @@ func parseAddr(value string) (string, error) {
 		return "", fmt.Errorf("invalid address: %s", value)
 	}
 	scheme := matches[1]
-	fmt.Println("SCHEME", scheme)
 	if scheme == "" {
 		scheme = "http://"
 	}

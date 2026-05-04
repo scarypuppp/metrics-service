@@ -2,43 +2,34 @@ package agent
 
 import (
 	"fmt"
-	"io"
-	"net/http"
 
+	"github.com/go-resty/resty/v2"
 	models "github.com/scarypuppp/metrics-service/internal/model"
 )
 
 type Sender struct {
-	client  *http.Client
+	client  *resty.Client
 	baseURL string
 }
 
-func NewSender(client *http.Client, baseUrl string) *Sender {
-	return &Sender{client, baseUrl}
+func NewSender(client *resty.Client, baseURL string) *Sender {
+	client.SetBaseURL(baseURL).
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Accept-Encoding", "gzip").
+		SetContentLength(true)
+
+	return &Sender{client, baseURL}
 }
 
 func (s *Sender) SendMetric(metric models.Metrics) error {
-	url := fmt.Sprintf("%s/update/%s/%s/%s", s.baseURL, metric.MType, metric.ID, metric.StringValue())
-	request, err := http.NewRequest(http.MethodPost, url, nil)
+	resp, err := s.client.R().
+		SetBody(metric).
+		Post("/update/")
 	if err != nil {
-		fmt.Println("failed to make request:", err)
-		return err
+		return fmt.Errorf("failed to send metric: %w", err)
 	}
-	request.Header.Set("Content-Type", "text/plain")
-	response, err := s.client.Do(request)
-	if err != nil {
-		fmt.Println("failed to send metric:", err)
-		return err
-	}
-	defer response.Body.Close()
-	bodyBytes, err := io.ReadAll(response.Body)
-	if err != nil {
-		fmt.Println("failed to read response:", err)
-		return err
-	}
-	responseText := string(bodyBytes)
-	if response.StatusCode != http.StatusOK {
-		fmt.Println("failed to send metric", response.StatusCode, "-", responseText)
+	if resp.IsError() {
+		return fmt.Errorf("server returned %d: %s", resp.StatusCode(), resp.String())
 	}
 	return nil
 }

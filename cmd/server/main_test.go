@@ -18,7 +18,7 @@ import (
 func newRouter(metricService service.MetricService) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
-	r.Post("/update/{metricType}/{metricName}/{metricValue}", handlers.UpdateMetricHandler(metricService))
+	r.Post("/update/{metricType}/{metricName}/{metricValue}", handlers.UpdateMetricByURLHandler(metricService))
 	return r
 }
 

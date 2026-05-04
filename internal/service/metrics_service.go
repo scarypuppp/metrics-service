@@ -38,7 +38,7 @@ func (ms *MetricService) GetByName(id string) (*models.Metrics, error) {
 	return metric, nil
 }
 
-func (ms *MetricService) UpdateMetric(name string, MType string, stringValue string) (*models.Metrics, error) {
+func (ms *MetricService) UpsertMetric(name string, MType string, stringValue string) (*models.Metrics, error) {
 	existingMetric := ms.Storage.GetByName(name)
 
 	if existingMetric != nil && existingMetric.MType != MType {

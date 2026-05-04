@@ -2,46 +2,56 @@ package main
 
 import (
 	"context"
-	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"regexp"
 	"syscall"
 	"time"
 
+	"github.com/scarypuppp/metrics-service/internal/config"
 	"github.com/scarypuppp/metrics-service/internal/handler"
+	"github.com/scarypuppp/metrics-service/internal/repository"
+	"github.com/scarypuppp/metrics-service/internal/service"
+	"go.uber.org/zap"
 )
 
-var serverOptions struct {
-	addr string
-}
-
 func main() {
-	serverOptions.addr = "localhost:8080"
-	flag.Func("a", "server address host:port", func(flagValue string) error {
-		expr, err := regexp.Compile(`^(localhost|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d{2,5})$`)
-		if err != nil {
-			return err
+	serverConfig, err := config.GetConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer logger.Sync()
+	zap.ReplaceGlobals(logger)
+
+	storage := repository.NewMemStorage(serverConfig.FileStoragePath, serverConfig.StoreInterval == 0)
+
+	if *serverConfig.Restore {
+		if err := storage.RestoreFromFile(); err != nil {
+			logger.Error("failed to restore metrics", zap.Error(err))
 		}
-		matches := expr.FindStringSubmatch(flagValue)
-		if matches == nil {
-			return fmt.Errorf("invalid address: %s", flagValue)
-		}
-		host := matches[1]
-		port := matches[2]
-		resultAddress := fmt.Sprintf("%s:%s", host, port)
-		serverOptions.addr = resultAddress
-		return nil
-	})
-	flag.Parse()
-	log.Printf("Listening on %s\n", serverOptions.addr)
-	router := handlers.GetAppRouter()
+	}
+	if serverConfig.StoreInterval > 0 {
+		go func() {
+			ticker := time.NewTicker(time.Duration(serverConfig.StoreInterval) * time.Second)
+			defer ticker.Stop()
+			for range ticker.C {
+				if err := storage.SaveToFile(); err != nil {
+					logger.Error("failed to save metrics", zap.Error(err))
+				}
+			}
+		}()
+	}
+
+	metricService := service.MetricService{Storage: storage}
+	router := handlers.GetAppRouter(metricService)
 
 	srv := &http.Server{
-		Addr:         serverOptions.addr,
+		Addr:         serverConfig.Addr,
 		Handler:      router,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -51,25 +61,24 @@ func main() {
 	// Запуск сервера
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server failed: %v", err)
+			logger.Error("run server failed", zap.Error(err))
 		}
 	}()
 
-	log.Printf("Server started on %s", serverOptions.addr)
-
+	logger.Info("Listening", zap.String("addr", serverConfig.Addr))
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("Shutting down server...")
+	logger.Info("Shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatal("Server forced to shutdown:", err)
+		logger.Fatal("Server forced to shutdown", zap.Error(err))
 	}
 
-	log.Println("Server stopped gracefully")
+	logger.Info("Server stopped gracefully")
 
 }

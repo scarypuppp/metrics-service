@@ -1,15 +1,12 @@
 package config
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"regexp"
 
 	"github.com/caarlos0/env/v6"
 )
-
-var ErrDatabaseDSNNotSpecified = errors.New("database is not specified")
 
 const (
 	defaultAddr            = "localhost:8080"
@@ -66,9 +63,6 @@ func GetConfig() (*Config, error) {
 	}
 	if config.DatabaseDSN == "" {
 		config.DatabaseDSN = *databaseDsnFlag
-	}
-	if config.DatabaseDSN == "" {
-		return nil, ErrDatabaseDSNNotSpecified
 	}
 
 	addr, err := parseAddr(config.Addr)

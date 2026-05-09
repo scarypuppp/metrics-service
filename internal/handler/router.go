@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"database/sql"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/scarypuppp/metrics-service/internal/middlewares"
 	"github.com/scarypuppp/metrics-service/internal/service"
@@ -8,6 +10,7 @@ import (
 
 func GetAppRouter(
 	metricService service.MetricService,
+	db *sql.DB,
 ) chi.Router {
 	r := chi.NewRouter()
 
@@ -18,6 +21,7 @@ func GetAppRouter(
 
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", RetrieveMetricsHandler(metricService))
+		r.Get("/ping", PingDatabaseHandler(db))
 		r.Route("/value", func(r chi.Router) {
 			r.Post("/", GetMetricHandler(metricService))
 			r.Get("/{metricType}/{metricName}", GetMetricByURLHandler(metricService))

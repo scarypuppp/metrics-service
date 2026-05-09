@@ -1,7 +1,7 @@
 .SILENT: export-server-env export-agent-env export-env
 
 env-server:
-	cp .env.agent.example .env.agent
+	cp .env.server.example .env.server
 
 env-agent:
 	cp .env.agent.example .env.agent

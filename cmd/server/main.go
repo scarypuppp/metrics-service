@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/scarypuppp/metrics-service/internal/config"
+	"github.com/scarypuppp/metrics-service/internal/config/db"
 	"github.com/scarypuppp/metrics-service/internal/handler"
 	"github.com/scarypuppp/metrics-service/internal/repository"
 	"github.com/scarypuppp/metrics-service/internal/service"
@@ -27,6 +28,12 @@ func main() {
 	}
 	defer logger.Sync()
 	zap.ReplaceGlobals(logger)
+
+	dbConn, err := db.NewDB(serverConfig.DatabaseDSN)
+	if err != nil {
+		logger.Error("create db connection failed", zap.Error(err))
+	}
+	defer dbConn.Close()
 
 	storage := repository.NewMemStorage(serverConfig.FileStoragePath, serverConfig.StoreInterval == 0)
 
@@ -48,7 +55,7 @@ func main() {
 	}
 
 	metricService := service.MetricService{Storage: storage}
-	router := handlers.GetAppRouter(metricService)
+	router := handlers.GetAppRouter(metricService, dbConn)
 
 	srv := &http.Server{
 		Addr:         serverConfig.Addr,

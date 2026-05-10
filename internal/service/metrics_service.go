@@ -1,89 +1,110 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"sort"
 	"strconv"
 
 	models "github.com/scarypuppp/metrics-service/internal/model"
+	"github.com/scarypuppp/metrics-service/internal/repository"
 )
 
-var ErrInvalidMetricType = errors.New("invalid metric type provided")
-var ErrMetricTypeMismatch = errors.New("metric with such name already exists with other type")
-var ErrMetricNameNotExist = errors.New("metric with such does not exist")
-
-type IMemStorage interface {
-	All() []models.Metrics
-	GetByName(id string) *models.Metrics
-	Set(metric *models.Metrics) error
-}
+var (
+	ErrInvalidMetricType  = errors.New("invalid metric type provided")
+	ErrMetricTypeMismatch = errors.New("metric with such name already exists with different type")
+	ErrMetricNameNotExist = errors.New("metric with such name does not exist")
+)
 
 type MetricService struct {
-	Storage IMemStorage
+	Storage repository.IMetricsStorage
 }
 
-func (ms *MetricService) GetAllMetrics() []models.Metrics {
-	metrics := ms.Storage.All()
+func NewMetricService(storage repository.IMetricsStorage) *MetricService {
+	return &MetricService{Storage: storage}
+}
+
+func (ms *MetricService) GetAllMetrics(ctx context.Context) ([]models.Metrics, error) {
+	metrics, err := ms.Storage.GetAllMetrics(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	sort.Slice(metrics, func(i, j int) bool {
 		return metrics[i].ID < metrics[j].ID
 	})
-	return metrics
+
+	return metrics, nil
 }
 
-func (ms *MetricService) GetByName(id string) (*models.Metrics, error) {
-	metric := ms.Storage.GetByName(id)
+func (ms *MetricService) GetByName(ctx context.Context, id string) (*models.Metrics, error) {
+	metric, err := ms.Storage.GetMetricByName(ctx, id)
+	if err != nil {
+		return nil, err
+	}
 	if metric == nil {
 		return nil, ErrMetricNameNotExist
 	}
 	return metric, nil
 }
 
-func (ms *MetricService) UpsertMetric(name string, MType string, stringValue string) (*models.Metrics, error) {
-	existingMetric := ms.Storage.GetByName(name)
+func (ms *MetricService) UpsertMetric(ctx context.Context, name, mType, stringValue string) (*models.Metrics, error) {
+	existing, err := ms.Storage.GetMetricByName(ctx, name)
+	if err != nil {
+		return nil, err
+	}
 
-	if existingMetric != nil && existingMetric.MType != MType {
+	if existing != nil && existing.MType != mType {
 		return nil, ErrMetricTypeMismatch
 	}
 
-	switch MType {
+	switch mType {
 	case models.Gauge:
 		value, err := strconv.ParseFloat(stringValue, 64)
 		if err != nil {
 			return nil, err
 		}
-		if existingMetric != nil {
-			existingMetric.Value = &value
-		} else {
-			existingMetric = &models.Metrics{
+
+		metric := existing
+		if metric == nil {
+			metric = &models.Metrics{
 				ID:    name,
-				MType: MType,
+				MType: mType,
 				Value: &value,
 			}
-		}
-		err = ms.Storage.Set(existingMetric)
-		if err != nil {
-			return nil, err
-		}
-		return existingMetric, nil
-	case models.Counter:
-		value, err := strconv.ParseInt(stringValue, 10, 64)
-		if err != nil {
-			return nil, err
-		}
-		if existingMetric != nil {
-			*existingMetric.Delta += value
 		} else {
-			existingMetric = &models.Metrics{
-				ID:    name,
-				MType: MType,
-				Delta: &value,
-			}
+			metric.Value = &value
 		}
-		err = ms.Storage.Set(existingMetric)
+
+		if err := ms.Storage.UpdateMetric(ctx, metric); err != nil {
+			return nil, err
+		}
+
+		return metric, nil
+
+	case models.Counter:
+		delta, err := strconv.ParseInt(stringValue, 10, 64)
 		if err != nil {
 			return nil, err
 		}
-		return existingMetric, nil
+
+		metric := existing
+		if metric == nil {
+			metric = &models.Metrics{
+				ID:    name,
+				MType: mType,
+				Delta: &delta,
+			}
+		} else {
+			*metric.Delta += delta
+		}
+
+		if err := ms.Storage.UpdateMetric(ctx, metric); err != nil {
+			return nil, err
+		}
+
+		return metric, nil
+
 	default:
 		return nil, ErrInvalidMetricType
 	}

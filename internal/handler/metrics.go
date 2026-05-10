@@ -21,7 +21,11 @@ func RetrieveMetricsHandler(metricService service.MetricService) http.HandlerFun
 			return
 		}
 		//Получение метрик
-		metrics := metricService.GetAllMetrics()
+		metrics, err := metricService.GetAllMetrics(req.Context())
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
 		formattedMetrics := "<pre style=\"word-wrap: break-word; white-space: pre-wrap;\">"
 		// Формирование ответа
 		for _, m := range metrics {
@@ -51,7 +55,7 @@ func GetMetricByURLHandler(metricService service.MetricService) http.HandlerFunc
 		}
 
 		// Получение метрики
-		metric, getMetricErr := metricService.GetByName(metricName)
+		metric, getMetricErr := metricService.GetByName(req.Context(), metricName)
 		if getMetricErr != nil {
 			switch {
 			case errors.Is(getMetricErr, service.ErrMetricNameNotExist):
@@ -84,7 +88,7 @@ func GetMetricHandler(metricService service.MetricService) http.HandlerFunc {
 		}
 
 		// Получение метрики
-		existingMetric, getMetricErr := metricService.GetByName(metric.ID)
+		existingMetric, getMetricErr := metricService.GetByName(req.Context(), metric.ID)
 		if getMetricErr != nil {
 			switch {
 			case errors.Is(getMetricErr, service.ErrMetricNameNotExist):
@@ -118,7 +122,7 @@ func UpdateMetricByURLHandler(metricService service.MetricService) http.HandlerF
 
 		// Обновление/создание метрики
 		metricValue := chi.URLParam(req, "metricValue")
-		metric, createMeticErr := metricService.UpsertMetric(metricName, metricType, metricValue)
+		metric, createMeticErr := metricService.UpsertMetric(req.Context(), metricName, metricType, metricValue)
 
 		if createMeticErr != nil {
 			switch {
@@ -160,7 +164,7 @@ func UpdateMetricHandler(metricService service.MetricService) http.HandlerFunc {
 		}
 
 		// Обновление/создание метрики
-		_, createMeticErr := metricService.UpsertMetric(metric.ID, metric.MType, metric.StringValue())
+		_, createMeticErr := metricService.UpsertMetric(req.Context(), metric.ID, metric.MType, metric.StringValue())
 
 		if createMeticErr != nil {
 			switch {

@@ -18,10 +18,13 @@ import (
 )
 
 func main() {
+	// Получение конфигурации
 	serverConfig, err := config.GetConfig()
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Инициализация логгера
 	logger, err := zap.NewDevelopment()
 	if err != nil {
 		log.Fatal(err)
@@ -29,33 +32,38 @@ func main() {
 	defer logger.Sync()
 	zap.ReplaceGlobals(logger)
 
-	dbConn, err := db.NewDB(serverConfig.DatabaseDSN)
+	// Инициализация sql.DB
+	dbObj, err := db.NewDB(serverConfig.DatabaseDSN)
 	if err != nil {
 		logger.Error("create db connection failed", zap.Error(err))
 	}
-	defer dbConn.Close()
+	defer dbObj.Close()
 
-	storage := repository.NewMemStorage(serverConfig.FileStoragePath, serverConfig.StoreInterval == 0)
+	// Инициализация репозитория метрик
+	var storage repository.IMetricsStorage
+	storageContext, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
 
-	if *serverConfig.Restore {
-		if err := storage.RestoreFromFile(); err != nil {
-			logger.Error("failed to restore metrics", zap.Error(err))
+	if serverConfig.DatabaseDSN == "" {
+		var opts []repository.Option
+		if serverConfig.FileStoragePath != "" {
+			opts = append(opts, repository.WithFile(
+				storageContext,
+				serverConfig.FileStoragePath,
+				serverConfig.StoreInterval,
+				*serverConfig.Restore,
+			))
 		}
-	}
-	if serverConfig.StoreInterval > 0 {
-		go func() {
-			ticker := time.NewTicker(time.Duration(serverConfig.StoreInterval) * time.Second)
-			defer ticker.Stop()
-			for range ticker.C {
-				if err := storage.SaveToFile(); err != nil {
-					logger.Error("failed to save metrics", zap.Error(err))
-				}
-			}
-		}()
+		storage, err = repository.NewMemMetricsStorage(storageContext, opts...)
+		if err != nil {
+			logger.Fatal("Failed to setup memory storage", zap.Error(err))
+		}
+	} else {
+		storage = repository.NewDBMetricsStorage(dbObj)
 	}
 
-	metricService := service.MetricService{Storage: storage}
-	router := handlers.GetAppRouter(metricService, dbConn)
+	metricService := service.NewMetricService(storage)
+	router := handlers.GetAppRouter(*metricService, dbObj)
 
 	srv := &http.Server{
 		Addr:         serverConfig.Addr,
@@ -79,13 +87,12 @@ func main() {
 	<-quit
 	logger.Info("Shutting down server...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := srv.Shutdown(ctx); err != nil {
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Fatal("Server forced to shutdown", zap.Error(err))
 	}
 
 	logger.Info("Server stopped gracefully")
-
 }

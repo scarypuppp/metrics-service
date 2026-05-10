@@ -66,7 +66,7 @@ func TestCreateMetricHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage := repository.MemStorage{Metrics: make(map[string]models.Metrics)}
+			storage := repository.MemMetricsStorage{Metrics: make(map[string]models.Metrics)}
 			metricService := service.MetricService{Storage: &storage}
 
 			req := httptest.NewRequest(tt.method, tt.url, nil)
@@ -83,7 +83,7 @@ func TestCreateMetricHandler(t *testing.T) {
 }
 
 func TestCreateMetricHandler_GaugeOverwritesOnUpdate(t *testing.T) {
-	storage := repository.MemStorage{Metrics: make(map[string]models.Metrics)}
+	storage := repository.MemMetricsStorage{Metrics: make(map[string]models.Metrics)}
 	metricService := service.MetricService{Storage: &storage}
 	r := newRouter(metricService)
 
@@ -101,7 +101,7 @@ func TestCreateMetricHandler_GaugeOverwritesOnUpdate(t *testing.T) {
 }
 
 func TestCreateMetricHandler_CounterAccumulatesOnUpdate(t *testing.T) {
-	storage := repository.MemStorage{Metrics: make(map[string]models.Metrics)}
+	storage := repository.MemMetricsStorage{Metrics: make(map[string]models.Metrics)}
 	metricService := service.MetricService{Storage: &storage}
 	r := newRouter(metricService)
 
@@ -119,7 +119,7 @@ func TestCreateMetricHandler_CounterAccumulatesOnUpdate(t *testing.T) {
 }
 
 func TestCreateMetricHandler_MetricTypeConflictReturnsError(t *testing.T) {
-	storage := repository.MemStorage{Metrics: make(map[string]models.Metrics)}
+	storage := repository.MemMetricsStorage{Metrics: make(map[string]models.Metrics)}
 	metricService := service.MetricService{Storage: &storage}
 	r := newRouter(metricService)
 

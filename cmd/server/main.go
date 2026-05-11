@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -9,13 +10,30 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/golang-migrate/migrate/v4"
 	"github.com/scarypuppp/metrics-service/internal/config"
 	"github.com/scarypuppp/metrics-service/internal/config/db"
 	"github.com/scarypuppp/metrics-service/internal/handler"
 	"github.com/scarypuppp/metrics-service/internal/repository"
 	"github.com/scarypuppp/metrics-service/internal/service"
 	"go.uber.org/zap"
+
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
+
+func runMigrations(dsn string) error {
+	m, err := migrate.New("file://migrations", dsn)
+	if err != nil {
+		return fmt.Errorf("create migrate: %w", err)
+	}
+	defer m.Close()
+
+	if err = m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("run migrations: %w", err)
+	}
+	return nil
+}
 
 func main() {
 	// Получение конфигурации
@@ -56,9 +74,12 @@ func main() {
 		}
 		storage, err = repository.NewMemMetricsStorage(storageContext, opts...)
 		if err != nil {
-			logger.Fatal("Failed to setup memory storage", zap.Error(err))
+			logger.Fatal("failed to setup memory storage", zap.Error(err))
 		}
 	} else {
+		if err := runMigrations(serverConfig.DatabaseDSN); err != nil {
+			log.Fatal(err)
+		}
 		storage = repository.NewDBMetricsStorage(dbObj)
 	}
 

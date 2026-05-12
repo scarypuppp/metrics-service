@@ -1,16 +1,15 @@
 package handlers
 
 import (
-	"database/sql"
-
 	"github.com/go-chi/chi/v5"
+	"github.com/jmoiron/sqlx"
 	"github.com/scarypuppp/metrics-service/internal/middlewares"
 	"github.com/scarypuppp/metrics-service/internal/service"
 )
 
 func GetAppRouter(
 	metricService service.MetricService,
-	db *sql.DB,
+	db *sqlx.DB,
 ) chi.Router {
 	r := chi.NewRouter()
 

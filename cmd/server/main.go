@@ -76,11 +76,13 @@ func main() {
 		if err != nil {
 			logger.Fatal("failed to setup memory storage", zap.Error(err))
 		}
+		logger.Info("Using memory storage", zap.Bool("with_file", len(opts) == 1))
 	} else {
 		if err := runMigrations(serverConfig.DatabaseDSN); err != nil {
 			log.Fatal(err)
 		}
 		storage = repository.NewDBMetricsStorage(dbObj)
+		logger.Info("Using database storage")
 	}
 
 	metricService := service.NewMetricService(storage)

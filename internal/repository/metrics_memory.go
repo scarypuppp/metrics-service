@@ -106,6 +106,17 @@ func (s *MemMetricsStorage) UpdateMetric(ctx context.Context, metric *models.Met
 	return nil
 }
 
+func (s *MemMetricsStorage) UpdateMetrics(ctx context.Context, metrics []models.Metrics) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, m := range metrics {
+		s.Metrics[m.ID] = m
+	}
+
+	return nil
+}
+
 func (s *MemMetricsStorage) saveToFile() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

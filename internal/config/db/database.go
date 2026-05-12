@@ -1,13 +1,12 @@
 package db
 
 import (
-	"database/sql"
-
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jmoiron/sqlx"
 )
 
-func NewDB(dsn string) (*sql.DB, error) {
-	db, err := sql.Open("pgx", dsn)
+func NewDB(dsn string) (*sqlx.DB, error) {
+	db, err := sqlx.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
 	}

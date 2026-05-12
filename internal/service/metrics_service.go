@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"sort"
-	"strconv"
 
 	models "github.com/scarypuppp/metrics-service/internal/model"
 	"github.com/scarypuppp/metrics-service/internal/repository"
@@ -48,63 +47,29 @@ func (ms *MetricService) GetByName(ctx context.Context, id string) (*models.Metr
 	return metric, nil
 }
 
-func (ms *MetricService) UpsertMetric(ctx context.Context, name, mType, stringValue string) (*models.Metrics, error) {
-	existing, err := ms.Storage.GetMetricByName(ctx, name)
+func (ms *MetricService) UpsertMetric(ctx context.Context, metric models.Metrics) (*models.Metrics, error) {
+	existing, err := ms.Storage.GetMetricByName(ctx, metric.ID)
 	if err != nil {
 		return nil, err
 	}
-
-	if existing != nil && existing.MType != mType {
+	if existing != nil && existing.MType != metric.MType {
 		return nil, ErrMetricTypeMismatch
 	}
 
-	switch mType {
+	switch metric.MType {
 	case models.Gauge:
-		value, err := strconv.ParseFloat(stringValue, 64)
-		if err != nil {
+		if err = ms.Storage.UpdateMetric(ctx, &metric); err != nil {
 			return nil, err
 		}
-
-		metric := existing
-		if metric == nil {
-			metric = &models.Metrics{
-				ID:    name,
-				MType: mType,
-				Value: &value,
-			}
-		} else {
-			metric.Value = &value
-		}
-
-		if err := ms.Storage.UpdateMetric(ctx, metric); err != nil {
-			return nil, err
-		}
-
-		return metric, nil
-
+		return &metric, nil
 	case models.Counter:
-		delta, err := strconv.ParseInt(stringValue, 10, 64)
-		if err != nil {
+		if existing != nil {
+			*metric.Delta += *existing.Delta
+		}
+		if err = ms.Storage.UpdateMetric(ctx, &metric); err != nil {
 			return nil, err
 		}
-
-		metric := existing
-		if metric == nil {
-			metric = &models.Metrics{
-				ID:    name,
-				MType: mType,
-				Delta: &delta,
-			}
-		} else {
-			*metric.Delta += delta
-		}
-
-		if err := ms.Storage.UpdateMetric(ctx, metric); err != nil {
-			return nil, err
-		}
-
-		return metric, nil
-
+		return &metric, nil
 	default:
 		return nil, ErrInvalidMetricType
 	}

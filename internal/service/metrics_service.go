@@ -60,11 +60,29 @@ func (ms *MetricService) UpsertMetric(ctx context.Context, metric models.Metrics
 }
 
 func (ms *MetricService) UpsertMetrics(ctx context.Context, metrics []models.Metrics) error {
+	merged := make(map[string]models.Metrics)
+	for _, m := range metrics {
+		key := m.ID
+		if existing, ok := merged[key]; ok {
+			if existing.MType != m.MType {
+				return ErrMetricTypeMismatch
+			}
+			if m.MType == models.Counter {
+				newDelta := *existing.Delta + *m.Delta
+				existing.Delta = &newDelta
+				merged[key] = existing
+				continue
+			}
+		}
+		merged[key] = m
+	}
+
 	txCtx, done, err := ms.Storage.BeginTx(ctx)
 	if err != nil {
 		return err
 	}
-	for _, metric := range metrics {
+
+	for _, metric := range merged {
 		if err = ms.upsertMetric(txCtx, metric); err != nil {
 			return done(err)
 		}

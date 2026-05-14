@@ -49,17 +49,10 @@ func (ms *MetricService) GetByName(ctx context.Context, id string) (*models.Metr
 
 func (ms *MetricService) UpsertMetric(ctx context.Context, metric models.Metrics) (*models.Metrics, error) {
 	txCtx, done, err := ms.Storage.BeginTx(ctx)
-	existing, err := ms.Storage.GetMetricByName(txCtx, metric.ID)
 	if err != nil {
 		return nil, err
 	}
-	if existing != nil && existing.MType != metric.MType {
-		return nil, ErrMetricTypeMismatch
-	}
-	if metric.MType == models.Counter && existing != nil {
-		*metric.Delta += *existing.Delta
-	}
-	err = ms.Storage.UpdateMetric(txCtx, &metric)
+	err = ms.upsertMetric(txCtx, metric)
 	if err = done(err); err != nil {
 		return nil, err
 	}
@@ -71,9 +64,24 @@ func (ms *MetricService) UpsertMetrics(ctx context.Context, metrics []models.Met
 	if err != nil {
 		return err
 	}
-	err = ms.Storage.UpdateMetrics(txCtx, metrics)
-	if err = done(err); err != nil {
+	for _, metric := range metrics {
+		if err = ms.upsertMetric(txCtx, metric); err != nil {
+			return done(err)
+		}
+	}
+	return done(nil)
+}
+
+func (ms *MetricService) upsertMetric(ctx context.Context, metric models.Metrics) error {
+	existing, err := ms.Storage.GetMetricByName(ctx, metric.ID)
+	if err != nil {
 		return err
 	}
-	return nil
+	if existing != nil && existing.MType != metric.MType {
+		return ErrMetricTypeMismatch
+	}
+	if metric.MType == models.Counter && existing != nil {
+		*metric.Delta += *existing.Delta
+	}
+	return ms.Storage.UpdateMetric(ctx, &metric)
 }

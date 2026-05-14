@@ -190,3 +190,33 @@ func UpdateMetricHandler(metricService service.MetricService) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 	}
 }
+
+func UpdateMetricsHandler(metricService service.MetricService) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		var metrics []models.Metrics
+		var buffer bytes.Buffer
+
+		_, err := buffer.ReadFrom(req.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err = json.Unmarshal(buffer.Bytes(), &metrics); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if err = metricService.UpsertMetrics(req.Context(), metrics); err != nil {
+			switch {
+			case errors.Is(err, service.ErrInvalidMetricType):
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			case errors.Is(err, service.ErrMetricTypeMismatch):
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			default:
+				http.Error(w, fmt.Sprintf("Error updating metrics: %s", err), http.StatusInternalServerError)
+			}
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}
+}

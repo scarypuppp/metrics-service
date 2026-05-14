@@ -11,15 +11,18 @@ import (
 )
 
 type DBMetricsStorage struct {
-	Metrics map[string]models.Metrics
-	dbObj   *sqlx.DB
+	dbObj *sqlx.DB
 }
 
 func NewDBMetricsStorage(dbObj *sqlx.DB) *DBMetricsStorage {
-	return &DBMetricsStorage{
-		Metrics: make(map[string]models.Metrics),
-		dbObj:   dbObj,
+	return &DBMetricsStorage{dbObj: dbObj}
+}
+
+func (s *DBMetricsStorage) getExecutor(ctx context.Context) sqlx.ExtContext {
+	if tx, _ := ctx.Value(txKey{}).(*sqlx.Tx); tx != nil {
+		return tx
 	}
+	return s.dbObj
 }
 
 func (s *DBMetricsStorage) BeginTx(ctx context.Context) (context.Context, func(error) error, error) {
@@ -39,24 +42,19 @@ func (s *DBMetricsStorage) BeginTx(ctx context.Context) (context.Context, func(e
 }
 
 func (s *DBMetricsStorage) GetAllMetrics(ctx context.Context) ([]models.Metrics, error) {
-	var metrics []models.Metrics
-	err := sqlx.GetContext(ctx, s.getExecutor(ctx), &metrics, `
-        SELECT id, mtype, delta, value, hash
-        FROM metrics
-        ORDER BY id`)
-	if err != nil {
+	metrics := make([]models.Metrics, 0)
+	if err := sqlx.SelectContext(ctx, s.getExecutor(ctx), &metrics, `
+        SELECT id, mtype, delta, value, hash FROM metrics ORDER BY id`,
+	); err != nil {
 		return nil, err
 	}
-
 	return metrics, nil
 }
 
 func (s *DBMetricsStorage) GetMetricByName(ctx context.Context, id string) (*models.Metrics, error) {
 	var m models.Metrics
 	err := sqlx.GetContext(ctx, s.getExecutor(ctx), &m, `
-        SELECT id, mtype, delta, value, hash
-        FROM metrics
-        WHERE id = $1`, id)
+        SELECT id, mtype, delta, value, hash FROM metrics WHERE id = $1`, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -70,48 +68,16 @@ func (s *DBMetricsStorage) UpdateMetric(ctx context.Context, metric *models.Metr
 	if metric == nil {
 		return fmt.Errorf("nil metric received")
 	}
-	_, err := sqlx.NamedExecContext(
-		ctx,
-		s.getExecutor(ctx),
-		`INSERT INTO metrics (id, mtype, delta, value, hash)
-        VALUES (:id, :mtype, :delta, :value, :hash)
-        ON CONFLICT (id) DO UPDATE 
-        SET mtype = EXCLUDED.mtype,
-            delta = EXCLUDED.delta,
-            value = EXCLUDED.value,
-            hash  = EXCLUDED.hash`,
-		metric,
-	)
-	if err != nil {
-		return fmt.Errorf("update metric %s: %w", metric.ID, err)
+	upsertQuery := `
+    INSERT INTO metrics (id, mtype, delta, value, hash)
+    VALUES (:id, :mtype, :delta, :value, :hash)
+    ON CONFLICT (id, mtype) DO UPDATE
+    SET mtype = EXCLUDED.mtype,
+        delta = EXCLUDED.delta,
+        value = EXCLUDED.value,
+        hash  = EXCLUDED.hash`
+	if _, err := sqlx.NamedExecContext(ctx, s.getExecutor(ctx), upsertQuery, metric); err != nil {
+		return fmt.Errorf("upsert metric %s: %w", metric.ID, err)
 	}
 	return nil
-}
-
-func (s *DBMetricsStorage) UpdateMetrics(ctx context.Context, metrics []models.Metrics) error {
-	_, err := sqlx.NamedExecContext(
-		ctx,
-		s.getExecutor(ctx),
-		`INSERT INTO metrics (id, mtype, delta, value, hash)
-		VALUES (:id, :mtype, :delta, :value, :hash)
-		ON CONFLICT (id, mtype) DO UPDATE 
-		SET 
-			mtype = EXCLUDED.mtype,
-			delta = EXCLUDED.delta,
-			value = EXCLUDED.value,
-			hash  = EXCLUDED.hash`,
-		metrics,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *DBMetricsStorage) getExecutor(ctx context.Context) sqlx.ExtContext {
-	tx, _ := ctx.Value(txKey{}).(*sqlx.Tx)
-	if tx != nil {
-		return tx
-	}
-	return s.dbObj
 }

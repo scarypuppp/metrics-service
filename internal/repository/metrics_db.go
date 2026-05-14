@@ -8,6 +8,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/scarypuppp/metrics-service/internal/model"
+	"github.com/scarypuppp/metrics-service/internal/utils/retry"
 )
 
 type DBMetricsStorage struct {
@@ -42,19 +43,21 @@ func (s *DBMetricsStorage) BeginTx(ctx context.Context) (context.Context, func(e
 }
 
 func (s *DBMetricsStorage) GetAllMetrics(ctx context.Context) ([]models.Metrics, error) {
-	metrics := make([]models.Metrics, 0)
-	if err := sqlx.SelectContext(ctx, s.getExecutor(ctx), &metrics, `
-        SELECT id, mtype, delta, value, hash FROM metrics ORDER BY id`,
-	); err != nil {
-		return nil, err
-	}
-	return metrics, nil
+	var metrics []models.Metrics
+	err := retry.Do(func() error {
+		metrics = make([]models.Metrics, 0)
+		return sqlx.SelectContext(ctx, s.getExecutor(ctx), &metrics, `
+            SELECT id, mtype, delta, value, hash FROM metrics ORDER BY id`)
+	}, retry.IsPgConnectionError)
+	return metrics, err
 }
 
 func (s *DBMetricsStorage) GetMetricByName(ctx context.Context, id string) (*models.Metrics, error) {
 	var m models.Metrics
-	err := sqlx.GetContext(ctx, s.getExecutor(ctx), &m, `
-        SELECT id, mtype, delta, value, hash FROM metrics WHERE id = $1`, id)
+	err := retry.Do(func() error {
+		return sqlx.GetContext(ctx, s.getExecutor(ctx), &m, `
+            SELECT id, mtype, delta, value, hash FROM metrics WHERE id = $1`, id)
+	}, retry.IsPgConnectionError)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -68,16 +71,19 @@ func (s *DBMetricsStorage) UpdateMetric(ctx context.Context, metric *models.Metr
 	if metric == nil {
 		return fmt.Errorf("nil metric received")
 	}
-	upsertQuery := `
-    INSERT INTO metrics (id, mtype, delta, value, hash)
-    VALUES (:id, :mtype, :delta, :value, :hash)
-    ON CONFLICT (id, mtype) DO UPDATE
-    SET mtype = EXCLUDED.mtype,
-        delta = EXCLUDED.delta,
-        value = EXCLUDED.value,
-        hash  = EXCLUDED.hash`
-	if _, err := sqlx.NamedExecContext(ctx, s.getExecutor(ctx), upsertQuery, metric); err != nil {
-		return fmt.Errorf("upsert metric %s: %w", metric.ID, err)
-	}
-	return nil
+	const upsertQuery = `
+        INSERT INTO metrics (id, mtype, delta, value, hash)
+        VALUES (:id, :mtype, :delta, :value, :hash)
+        ON CONFLICT (id, mtype) DO UPDATE
+        SET mtype = EXCLUDED.mtype,
+            delta = EXCLUDED.delta,
+            value = EXCLUDED.value,
+            hash  = EXCLUDED.hash`
+	return retry.Do(func() error {
+		_, err := sqlx.NamedExecContext(ctx, s.getExecutor(ctx), upsertQuery, metric)
+		if err != nil {
+			return fmt.Errorf("upsert metric %s: %w", metric.ID, err)
+		}
+		return nil
+	}, retry.IsPgConnectionError)
 }

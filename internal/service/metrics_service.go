@@ -55,22 +55,11 @@ func (ms *MetricService) UpsertMetric(ctx context.Context, metric models.Metrics
 	if existing != nil && existing.MType != metric.MType {
 		return nil, ErrMetricTypeMismatch
 	}
-
-	switch metric.MType {
-	case models.Gauge:
-		if err = ms.Storage.UpdateMetric(ctx, &metric); err != nil {
-			return nil, err
-		}
-		return &metric, nil
-	case models.Counter:
-		if existing != nil {
-			*metric.Delta += *existing.Delta
-		}
-		if err = ms.Storage.UpdateMetric(ctx, &metric); err != nil {
-			return nil, err
-		}
-		return &metric, nil
-	default:
-		return nil, ErrInvalidMetricType
+	if metric.MType == models.Counter && existing != nil {
+		*metric.Delta += *existing.Delta
 	}
+	if err = ms.Storage.UpdateMetric(ctx, &metric); err != nil {
+		return nil, err
+	}
+	return &metric, nil
 }

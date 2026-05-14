@@ -21,6 +21,11 @@ type MemMetricsStorage struct {
 	mu sync.RWMutex
 }
 
+func (s *MemMetricsStorage) Begin() (IMetricsStorageTx, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 type Option func(*MemMetricsStorage) error
 
 func WithFile(ctx context.Context, fileName string, storeIntervalSec int, restore bool) Option {
@@ -70,13 +75,12 @@ func (s *MemMetricsStorage) startPeriodicSave(ctx context.Context) {
 }
 
 func (s *MemMetricsStorage) GetAllMetrics(ctx context.Context) ([]models.Metrics, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 
 	metrics := make([]models.Metrics, 0, len(s.Metrics))
 	for _, m := range s.Metrics {
 		metrics = append(metrics, m)
 	}
+
 	return metrics, nil
 }
 

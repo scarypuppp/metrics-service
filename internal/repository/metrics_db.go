@@ -22,6 +22,26 @@ func NewDBMetricsStorage(dbObj *sqlx.DB) *DBMetricsStorage {
 	}
 }
 
+func (s *DBMetricsStorage) BeginTx(ctx context.Context) (context.Context, func(error) error, error) {
+	tx, err := s.dbObj.BeginTxx(ctx, nil)
+	if err != nil {
+		return ctx, nil, err
+	}
+	txCtx := WithTx(ctx, tx)
+	doneFn := func(err error) error {
+		if err == nil {
+			err = tx.Commit()
+			if err != nil {
+				return err
+			}
+			return nil
+		} else {
+			tx.Rollback()
+		}
+	}
+	return ctx, doneFn, nil
+}
+
 func (s *DBMetricsStorage) GetAllMetrics(ctx context.Context) ([]models.Metrics, error) {
 	var metrics []models.Metrics
 	err := s.dbObj.SelectContext(ctx, &metrics, `
@@ -99,4 +119,15 @@ func (s *DBMetricsStorage) UpdateMetrics(ctx context.Context, metrics []models.M
 		return err
 	}
 	return nil
+}
+
+func (s *DBMetricsStorage) getExecutor(ctx context.Context) sqlx.ExtContext {
+	tx, ok := ctx.Value(txKey{}).(*sqlx.Tx)
+	if !ok {
+		return nil
+	}
+	if tx != nil {
+		return tx
+	}
+	return s.dbObj
 }

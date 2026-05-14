@@ -116,14 +116,14 @@ func UpdateMetricByURLHandler(metricService service.MetricService) http.HandlerF
 		metricType := chi.URLParam(req, "metricType")
 		metricName := chi.URLParam(req, "metricName")
 		if metricName == "" || metricType == "" {
-			http.Error(w, "metricName and metricType is required", http.StatusNotFound)
+			http.Error(w, "metricName and metricType is required", http.StatusBadRequest)
 			return
 		}
 		metricValue := chi.URLParam(req, "metricValue")
 		// Обновление/создание метрики
 		metric, err := models.NewMetric(metricName, metricType, metricValue)
 		if err != nil {
-			http.Error(w, "error building metric entity", http.StatusNotFound)
+			http.Error(w, "error building metric entity", http.StatusBadRequest)
 			return
 		}
 		_, createMeticErr := metricService.UpsertMetric(req.Context(), *metric)

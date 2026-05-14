@@ -48,7 +48,8 @@ func (ms *MetricService) GetByName(ctx context.Context, id string) (*models.Metr
 }
 
 func (ms *MetricService) UpsertMetric(ctx context.Context, metric models.Metrics) (*models.Metrics, error) {
-	existing, err := ms.Storage.GetMetricByName(ctx, metric.ID)
+	txCtx, done, err := ms.Storage.BeginTx(ctx)
+	existing, err := ms.Storage.GetMetricByName(txCtx, metric.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -58,8 +59,21 @@ func (ms *MetricService) UpsertMetric(ctx context.Context, metric models.Metrics
 	if metric.MType == models.Counter && existing != nil {
 		*metric.Delta += *existing.Delta
 	}
-	if err = ms.Storage.UpdateMetric(ctx, &metric); err != nil {
+	err = ms.Storage.UpdateMetric(txCtx, &metric)
+	if err = done(err); err != nil {
 		return nil, err
 	}
 	return &metric, nil
+}
+
+func (ms *MetricService) UpsertMetrics(ctx context.Context, metrics []models.Metrics) error {
+	txCtx, done, err := ms.Storage.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	err = ms.Storage.UpdateMetrics(txCtx, metrics)
+	if err = done(err); err != nil {
+		return err
+	}
+	return nil
 }

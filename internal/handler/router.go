@@ -29,7 +29,7 @@ func GetAppRouter(
 			r.Post("/", UpdateMetricHandler(metricService))
 			r.Post("/{metricType}/{metricName}/{metricValue}", UpdateMetricByURLHandler(metricService))
 		})
-		r.Post("/updates", UpdateMetricsHandler(metricService))
+		r.Post("/updates/", UpdateMetricsHandler(metricService))
 	})
 	return r
 }

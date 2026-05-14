@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	models "github.com/scarypuppp/metrics-service/internal/model"
 	"github.com/scarypuppp/metrics-service/internal/service"
+	"go.uber.org/zap"
 )
 
 func RetrieveMetricsHandler(metricService service.MetricService) http.HandlerFunc {
@@ -129,6 +130,7 @@ func UpdateMetricByURLHandler(metricService service.MetricService) http.HandlerF
 		_, createMeticErr := metricService.UpsertMetric(req.Context(), *metric)
 
 		if createMeticErr != nil {
+			zap.S().Error("Error upsert metric", zap.Error(err))
 			switch {
 			case errors.Is(createMeticErr, strconv.ErrSyntax):
 				errorMessage := fmt.Sprintf("%s", createMeticErr)
@@ -171,6 +173,7 @@ func UpdateMetricHandler(metricService service.MetricService) http.HandlerFunc {
 		_, createMeticErr := metricService.UpsertMetric(req.Context(), metric)
 
 		if createMeticErr != nil {
+			zap.S().Error("Error upsert metric", zap.Error(err))
 			switch {
 			case errors.Is(createMeticErr, strconv.ErrSyntax):
 				errorMessage := fmt.Sprintf("%s", createMeticErr)
@@ -207,6 +210,7 @@ func UpdateMetricsHandler(metricService service.MetricService) http.HandlerFunc 
 		}
 
 		if err = metricService.UpsertMetrics(req.Context(), metrics); err != nil {
+			zap.S().Error("Error upsert metrics", zap.Error(err))
 			switch {
 			case errors.Is(err, service.ErrInvalidMetricType):
 				http.Error(w, err.Error(), http.StatusBadRequest)

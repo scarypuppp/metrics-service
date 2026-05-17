@@ -16,10 +16,10 @@ var (
 )
 
 type MetricService struct {
-	Storage repository.IMetricsStorage
+	Storage repository.MetricsStorage
 }
 
-func NewMetricService(storage repository.IMetricsStorage) *MetricService {
+func NewMetricService(storage repository.MetricsStorage) *MetricService {
 	return &MetricService{Storage: storage}
 }
 

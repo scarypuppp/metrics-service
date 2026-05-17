@@ -1,8 +1,11 @@
 package retry
 
 import (
+	"errors"
 	"time"
 )
+
+var ErrMaxRetriesExceeded = errors.New("max retries exceeded")
 
 var intervals = []time.Duration{
 	1 * time.Second,
@@ -24,5 +27,5 @@ func Do(fn func() error, isRetriable func(error) bool) error {
 			return err
 		}
 	}
-	return fn()
+	return ErrMaxRetriesExceeded
 }

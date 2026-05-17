@@ -77,7 +77,8 @@ func (s *MemMetricsStorage) BeginTx(ctx context.Context) (context.Context, func(
 }
 
 func (s *MemMetricsStorage) GetAllMetrics(ctx context.Context) ([]models.Metrics, error) {
-
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	metrics := make([]models.Metrics, 0, len(s.Metrics))
 	for _, m := range s.Metrics {
 		metrics = append(metrics, m)

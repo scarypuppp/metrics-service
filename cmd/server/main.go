@@ -11,9 +11,10 @@ import (
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
+	"github.com/jmoiron/sqlx"
 	"github.com/scarypuppp/metrics-service/internal/config"
-	"github.com/scarypuppp/metrics-service/internal/config/db"
 	"github.com/scarypuppp/metrics-service/internal/handler"
+	"github.com/scarypuppp/metrics-service/internal/infrastructure/postgres"
 	"github.com/scarypuppp/metrics-service/internal/repository"
 	"github.com/scarypuppp/metrics-service/internal/service"
 	"go.uber.org/zap"
@@ -51,16 +52,14 @@ func main() {
 	zap.ReplaceGlobals(logger)
 
 	// Инициализация sql.DB
-	dbObj, err := db.NewDB(serverConfig.DatabaseDSN)
-	if err != nil {
-		logger.Error("create db connection failed", zap.Error(err))
-	}
-	defer dbObj.Close()
 
 	// Инициализация репозитория метрик
-	var storage repository.IMetricsStorage
+	var storage repository.MetricsStorage
 	storageContext, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
+
+	// Инициализация dbObj
+	var dbObj *sqlx.DB
 
 	if serverConfig.DatabaseDSN == "" {
 		var opts []repository.Option
@@ -78,6 +77,11 @@ func main() {
 		}
 		logger.Info("Using memory storage", zap.Bool("with_file", len(opts) == 1))
 	} else {
+		dbObj, err := postgres.NewDB(serverConfig.DatabaseDSN)
+		if err != nil {
+			logger.Fatal("create db connection failed", zap.Error(err))
+		}
+		defer dbObj.Close()
 		if err := runMigrations(serverConfig.DatabaseDSN); err != nil {
 			log.Fatal(err)
 		}

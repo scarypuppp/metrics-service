@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
-	"github.com/jmoiron/sqlx"
 	"github.com/scarypuppp/metrics-service/internal/config"
 	"github.com/scarypuppp/metrics-service/internal/handler"
 	"github.com/scarypuppp/metrics-service/internal/infrastructure/postgres"
@@ -52,14 +51,16 @@ func main() {
 	zap.ReplaceGlobals(logger)
 
 	// Инициализация sql.DB
+	dbObj, err := postgres.NewDB(serverConfig.DatabaseDSN)
+	if err != nil {
+		logger.Fatal("db object creation failed", zap.Error(err))
+	}
+	defer dbObj.Close()
 
 	// Инициализация репозитория метрик
 	var storage repository.MetricsStorage
 	storageContext, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
-
-	// Инициализация dbObj
-	var dbObj *sqlx.DB
 
 	if serverConfig.DatabaseDSN == "" {
 		var opts []repository.Option
@@ -77,11 +78,6 @@ func main() {
 		}
 		logger.Info("Using memory storage", zap.Bool("with_file", len(opts) == 1))
 	} else {
-		dbObj, err := postgres.NewDB(serverConfig.DatabaseDSN)
-		if err != nil {
-			logger.Fatal("create db connection failed", zap.Error(err))
-		}
-		defer dbObj.Close()
 		if err := runMigrations(serverConfig.DatabaseDSN); err != nil {
 			log.Fatal(err)
 		}

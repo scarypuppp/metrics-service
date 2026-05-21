@@ -13,6 +13,7 @@ const (
 	defaultStoreInterval   = 300
 	defaultFileStoragePath = "metrics.json"
 	defaultRestore         = true
+	defaultDatabaseDsn     = ""
 )
 
 type Config struct {
@@ -20,6 +21,7 @@ type Config struct {
 	StoreInterval   int    `env:"STORE_INTERVAL"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	Restore         *bool  `env:"RESTORE"`
+	DatabaseDSN     string `env:"DATABASE_DSN"`
 }
 
 var addrRegexp = regexp.MustCompile(`^(https?://)?(localhost|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})?:(\d{2,5})$`)
@@ -44,6 +46,7 @@ func GetConfig() (*Config, error) {
 	storeIntervalFlag := flag.Int("i", defaultStoreInterval, "store metrics to file interval")
 	fileStoragePathFlag := flag.String("f", defaultFileStoragePath, "metrics storage file path")
 	restoreFlag := flag.Bool("r", defaultRestore, "restore metrics from file")
+	databaseDsnFlag := flag.String("d", defaultDatabaseDsn, "database dsn string")
 	flag.Parse()
 
 	if config.Addr == "" {
@@ -57,6 +60,9 @@ func GetConfig() (*Config, error) {
 	}
 	if config.Restore == nil {
 		config.Restore = restoreFlag
+	}
+	if config.DatabaseDSN == "" {
+		config.DatabaseDSN = *databaseDsnFlag
 	}
 
 	addr, err := parseAddr(config.Addr)

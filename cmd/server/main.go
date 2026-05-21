@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -9,18 +10,39 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/golang-migrate/migrate/v4"
 	"github.com/scarypuppp/metrics-service/internal/config"
 	"github.com/scarypuppp/metrics-service/internal/handler"
+	"github.com/scarypuppp/metrics-service/internal/infrastructure/postgres"
 	"github.com/scarypuppp/metrics-service/internal/repository"
 	"github.com/scarypuppp/metrics-service/internal/service"
 	"go.uber.org/zap"
+
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
+func runMigrations(dsn string) error {
+	m, err := migrate.New("file://migrations", dsn)
+	if err != nil {
+		return fmt.Errorf("create migrate: %w", err)
+	}
+	defer m.Close()
+
+	if err = m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("run migrations: %w", err)
+	}
+	return nil
+}
+
 func main() {
+	// Получение конфигурации
 	serverConfig, err := config.GetConfig()
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Инициализация логгера
 	logger, err := zap.NewDevelopment()
 	if err != nil {
 		log.Fatal(err)
@@ -28,27 +50,43 @@ func main() {
 	defer logger.Sync()
 	zap.ReplaceGlobals(logger)
 
-	storage := repository.NewMemStorage(serverConfig.FileStoragePath, serverConfig.StoreInterval == 0)
+	// Инициализация sql.DB
+	dbObj, err := postgres.NewDB(serverConfig.DatabaseDSN)
+	if err != nil {
+		logger.Fatal("db object creation failed", zap.Error(err))
+	}
+	defer dbObj.Close()
 
-	if *serverConfig.Restore {
-		if err := storage.RestoreFromFile(); err != nil {
-			logger.Error("failed to restore metrics", zap.Error(err))
+	// Инициализация репозитория метрик
+	var storage repository.MetricsStorage
+	storageContext, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	if serverConfig.DatabaseDSN == "" {
+		var opts []repository.Option
+		if serverConfig.FileStoragePath != "" {
+			opts = append(opts, repository.WithFile(
+				storageContext,
+				serverConfig.FileStoragePath,
+				serverConfig.StoreInterval,
+				*serverConfig.Restore,
+			))
 		}
-	}
-	if serverConfig.StoreInterval > 0 {
-		go func() {
-			ticker := time.NewTicker(time.Duration(serverConfig.StoreInterval) * time.Second)
-			defer ticker.Stop()
-			for range ticker.C {
-				if err := storage.SaveToFile(); err != nil {
-					logger.Error("failed to save metrics", zap.Error(err))
-				}
-			}
-		}()
+		storage, err = repository.NewMemMetricsStorage(storageContext, opts...)
+		if err != nil {
+			logger.Fatal("failed to setup memory storage", zap.Error(err))
+		}
+		logger.Info("Using memory storage", zap.Bool("with_file", len(opts) == 1))
+	} else {
+		if err := runMigrations(serverConfig.DatabaseDSN); err != nil {
+			log.Fatal(err)
+		}
+		storage = repository.NewDBMetricsStorage(dbObj)
+		logger.Info("Using database storage")
 	}
 
-	metricService := service.MetricService{Storage: storage}
-	router := handlers.GetAppRouter(metricService)
+	metricService := service.NewMetricService(storage)
+	router := handlers.GetAppRouter(*metricService, dbObj)
 
 	srv := &http.Server{
 		Addr:         serverConfig.Addr,
@@ -72,13 +110,12 @@ func main() {
 	<-quit
 	logger.Info("Shutting down server...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := srv.Shutdown(ctx); err != nil {
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Fatal("Server forced to shutdown", zap.Error(err))
 	}
 
 	logger.Info("Server stopped gracefully")
-
 }

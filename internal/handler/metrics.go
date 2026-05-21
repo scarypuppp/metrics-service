@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	models "github.com/scarypuppp/metrics-service/internal/model"
 	"github.com/scarypuppp/metrics-service/internal/service"
+	"go.uber.org/zap"
 )
 
 func RetrieveMetricsHandler(metricService service.MetricService) http.HandlerFunc {
@@ -21,7 +22,11 @@ func RetrieveMetricsHandler(metricService service.MetricService) http.HandlerFun
 			return
 		}
 		//Получение метрик
-		metrics := metricService.GetAllMetrics()
+		metrics, err := metricService.GetAllMetrics(req.Context())
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
 		formattedMetrics := "<pre style=\"word-wrap: break-word; white-space: pre-wrap;\">"
 		// Формирование ответа
 		for _, m := range metrics {
@@ -51,7 +56,7 @@ func GetMetricByURLHandler(metricService service.MetricService) http.HandlerFunc
 		}
 
 		// Получение метрики
-		metric, getMetricErr := metricService.GetByName(metricName)
+		metric, getMetricErr := metricService.GetByName(req.Context(), metricName)
 		if getMetricErr != nil {
 			switch {
 			case errors.Is(getMetricErr, service.ErrMetricNameNotExist):
@@ -84,7 +89,7 @@ func GetMetricHandler(metricService service.MetricService) http.HandlerFunc {
 		}
 
 		// Получение метрики
-		existingMetric, getMetricErr := metricService.GetByName(metric.ID)
+		existingMetric, getMetricErr := metricService.GetByName(req.Context(), metric.ID)
 		if getMetricErr != nil {
 			switch {
 			case errors.Is(getMetricErr, service.ErrMetricNameNotExist):
@@ -112,15 +117,20 @@ func UpdateMetricByURLHandler(metricService service.MetricService) http.HandlerF
 		metricType := chi.URLParam(req, "metricType")
 		metricName := chi.URLParam(req, "metricName")
 		if metricName == "" || metricType == "" {
-			http.Error(w, "metricName and metricType is required", http.StatusNotFound)
+			http.Error(w, "metricName and metricType is required", http.StatusBadRequest)
 			return
 		}
-
-		// Обновление/создание метрики
 		metricValue := chi.URLParam(req, "metricValue")
-		metric, createMeticErr := metricService.UpsertMetric(metricName, metricType, metricValue)
+		// Обновление/создание метрики
+		metric, err := models.NewMetric(metricName, metricType, metricValue)
+		if err != nil {
+			http.Error(w, "error building metric entity", http.StatusBadRequest)
+			return
+		}
+		_, createMeticErr := metricService.UpsertMetric(req.Context(), *metric)
 
 		if createMeticErr != nil {
+			zap.S().Error("Error upsert metric", zap.Error(err))
 			switch {
 			case errors.Is(createMeticErr, strconv.ErrSyntax):
 				errorMessage := fmt.Sprintf("%s", createMeticErr)
@@ -160,9 +170,10 @@ func UpdateMetricHandler(metricService service.MetricService) http.HandlerFunc {
 		}
 
 		// Обновление/создание метрики
-		_, createMeticErr := metricService.UpsertMetric(metric.ID, metric.MType, metric.StringValue())
+		_, createMeticErr := metricService.UpsertMetric(req.Context(), metric)
 
 		if createMeticErr != nil {
+			zap.S().Error("Error upsert metric", zap.Error(err))
 			switch {
 			case errors.Is(createMeticErr, strconv.ErrSyntax):
 				errorMessage := fmt.Sprintf("%s", createMeticErr)
@@ -176,6 +187,37 @@ func UpdateMetricHandler(metricService service.MetricService) http.HandlerFunc {
 			default:
 				errorMessage := fmt.Sprintf("Error creating metric: %s", createMeticErr)
 				http.Error(w, errorMessage, http.StatusInternalServerError)
+			}
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}
+}
+
+func UpdateMetricsHandler(metricService service.MetricService) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		var metrics []models.Metrics
+		var buffer bytes.Buffer
+
+		_, err := buffer.ReadFrom(req.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err = json.Unmarshal(buffer.Bytes(), &metrics); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if err = metricService.UpsertMetrics(req.Context(), metrics); err != nil {
+			zap.S().Error("Error upsert metrics", zap.Error(err))
+			switch {
+			case errors.Is(err, service.ErrInvalidMetricType):
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			case errors.Is(err, service.ErrMetricTypeMismatch):
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			default:
+				http.Error(w, fmt.Sprintf("Error updating metrics: %s", err), http.StatusInternalServerError)
 			}
 			return
 		}

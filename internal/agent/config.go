@@ -12,12 +12,14 @@ const (
 	defaultServerAddr     = "http://localhost:8080"
 	defaultPoolInterval   = int64(2)
 	defaultReportInterval = int64(10)
+	defaultKey            = ""
 )
 
 type Config struct {
 	ServerAddr     string `env:"ADDRESS"        `
 	PoolInterval   int64  `env:"POLL_INTERVAL"  `
 	ReportInterval int64  `env:"REPORT_INTERVAL"`
+	Key            string `env:"KEY"`
 }
 
 var addrRegexp = regexp.MustCompile(`^(https?://)?(localhost|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d{2,5})$`)
@@ -36,22 +38,28 @@ func parseAddr(value string) (string, error) {
 
 func GetConfig() (*Config, error) {
 	var config Config
-
 	if err := env.Parse(&config); err != nil {
 		return nil, err
 	}
 
-	if config.ServerAddr == "" {
-		flag.StringVar(&config.ServerAddr, "a", defaultServerAddr, "server address host:port")
-	}
-	if config.PoolInterval == 0 {
-		flag.Int64Var(&config.PoolInterval, "p", defaultPoolInterval, "pool interval in seconds")
-	}
-	if config.ReportInterval == 0 {
-		flag.Int64Var(&config.ReportInterval, "r", defaultReportInterval, "report interval in seconds")
-	}
+	addrFlag := flag.String("a", defaultServerAddr, "server address host:port")
+	poolIntervalFlag := flag.Int64("p", defaultPoolInterval, "pool interval in seconds")
+	reportIntervalFlag := flag.Int64("r", defaultReportInterval, "report interval in seconds")
+	keyFlag := flag.String("k", defaultKey, "key to calculate data hash")
 	flag.Parse()
 
+	if config.ServerAddr == "" {
+		config.ServerAddr = *addrFlag
+	}
+	if config.PoolInterval == 0 {
+		config.PoolInterval = *poolIntervalFlag
+	}
+	if config.ReportInterval == 0 {
+		config.ReportInterval = *reportIntervalFlag
+	}
+	if config.Key == "" {
+		config.Key = *keyFlag
+	}
 	addr, err := parseAddr(config.ServerAddr)
 	if err != nil {
 		return nil, err

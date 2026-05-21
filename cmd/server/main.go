@@ -84,9 +84,8 @@ func main() {
 		storage = repository.NewDBMetricsStorage(dbObj)
 		logger.Info("Using database storage")
 	}
-
 	metricService := service.NewMetricService(storage)
-	router := handlers.GetAppRouter(*metricService, dbObj)
+	router := handlers.GetAppRouter(serverConfig.Key, *metricService, dbObj)
 
 	srv := &http.Server{
 		Addr:         serverConfig.Addr,

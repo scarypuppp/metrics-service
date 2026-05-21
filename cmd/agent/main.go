@@ -25,7 +25,7 @@ func main() {
 	})
 	newAgent := agent.NewAgent(
 		agent.NewCollector(),
-		agent.NewSender(client, agentConfig.ServerAddr),
+		agent.NewSender(client, agentConfig.ServerAddr, agentConfig.Key),
 		agentConfig.PoolInterval,
 		agentConfig.ReportInterval,
 	)

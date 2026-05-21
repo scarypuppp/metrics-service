@@ -20,7 +20,7 @@ func ValidateRequestHash(key string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			receivedHash := r.Header.Get("HashSHA256")
 			if receivedHash == "" {
-				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+				next.ServeHTTP(w, r)
 				return
 			}
 			var buffer bytes.Buffer

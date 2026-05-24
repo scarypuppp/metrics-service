@@ -114,8 +114,8 @@ func (s *MemMetricsStorage) UpdateMetric(ctx context.Context, metric *models.Met
 }
 
 func (s *MemMetricsStorage) saveToFile() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.saveToFileNoLock()
 }
 

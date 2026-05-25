@@ -1,7 +1,9 @@
 package agent
 
 import (
-	"fmt"
+	"context"
+	"log"
+	"sync"
 	"time"
 
 	models "github.com/scarypuppp/metrics-service/internal/model"
@@ -9,6 +11,7 @@ import (
 
 type IMetricCollector interface {
 	CollectMetrics(pollCountValue int64) []models.Metrics
+	CollectCustomMetrics() []models.Metrics
 }
 
 type IMetricSender interface {
@@ -16,51 +19,80 @@ type IMetricSender interface {
 }
 
 type Agent struct {
-	collector      IMetricCollector
-	sender         IMetricSender
-	poolInterval   int64
-	reportInterval int64
+	collector    IMetricCollector
+	sender       IMetricSender
+	metricsPool  sync.Pool
+	poolTicker   *time.Ticker
+	reportTicker *time.Ticker
+	pollCount    int64
 }
 
 func NewAgent(collector IMetricCollector, sender IMetricSender, poolInterval int64, reportInterval int64) *Agent {
 	return &Agent{
-		collector:      collector,
-		sender:         sender,
-		poolInterval:   poolInterval,
-		reportInterval: reportInterval,
+		collector:    collector,
+		sender:       sender,
+		poolTicker:   time.NewTicker(time.Duration(poolInterval) * time.Second),
+		reportTicker: time.NewTicker(time.Duration(reportInterval) * time.Second),
 	}
 }
 
-func (p *Agent) Run() {
-	fmt.Println("Start pooling...")
-	var poolCountValue int64 = 0
-	var iterationCounter int64 = 1
+func (p *Agent) RunCollectMetricsWorker(collectType string, resultsCh chan<- models.Metrics) {
 	var metrics []models.Metrics
-	for {
-		if iterationCounter%p.poolInterval == 0 {
-			metrics = p.handleCollectMetrics(&poolCountValue)
-			poolCountValue++
-		}
-		if iterationCounter%p.reportInterval == 0 {
-			p.handlerSendMetrics(metrics)
-			poolCountValue = 0
-		}
-		time.Sleep(time.Second)
-		iterationCounter++
+	switch collectType {
+	case "1":
+		log.Println("Collecting Runtime")
+		metrics = p.collector.CollectMetrics(p.pollCount)
+	case "2":
+		log.Println("Collecting Custom")
+		metrics = p.collector.CollectCustomMetrics()
+	}
+	for _, m := range metrics {
+		resultsCh <- m
 	}
 }
 
-func (p *Agent) handleCollectMetrics(poolCountValue *int64) []models.Metrics {
-	result := p.collector.CollectMetrics(*poolCountValue)
-	return result
+func (p *Agent) RunSendMetricWorker(id int, metricsCh <-chan models.Metrics, sendResultsCh chan<- error) {
+	log.Printf("SendMetric worker %d started", id)
+	currMetric := <-metricsCh
+	log.Printf("SendMetric worker %d metric %s", id, currMetric.ID)
+	time.Sleep(10 * time.Millisecond)
+	sendResultsCh <- nil
+	log.Printf("SendMetric worker %d done", id)
 }
 
-func (p *Agent) handlerSendMetrics(metrics []models.Metrics) {
-	for _, metric := range metrics {
-		err := p.sender.SendMetric(metric)
-		if err != nil {
-			fmt.Printf("Failed to send metric %s: %s\n", metric.ID, err)
-			break
+func (p *Agent) RunCtx(ctx context.Context, rateLimit int) {
+	defer p.poolTicker.Stop()
+	defer p.reportTicker.Stop()
+
+	collectMetricsOutCh := make(chan models.Metrics)
+	sendInCh := make(chan models.Metrics)
+	sendOutCh := make(chan error)
+
+	defer close(collectMetricsOutCh)
+	defer close(sendInCh)
+	defer close(sendOutCh)
+
+	var collectedMetrics []models.Metrics
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("Stopping agent...")
+			return
+		case <-p.poolTicker.C:
+			log.Println("POOL!")
+			go func() {
+				for m := range collectMetricsOutCh {
+					collectedMetrics = append(collectedMetrics, m)
+				}
+			}()
+			go p.RunCollectMetricsWorker("1", collectMetricsOutCh)
+			go p.RunCollectMetricsWorker("2", collectMetricsOutCh)
+		case <-p.reportTicker.C:
+			log.Println("REPORT!")
+			for i := 0; i < rateLimit; i++ {
+				go p.RunSendMetricWorker(i, sendInCh, sendOutCh)
+			}
 		}
 	}
 }

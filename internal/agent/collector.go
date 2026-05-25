@@ -1,19 +1,31 @@
 package agent
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"runtime"
+	"sync"
+	"time"
+
+	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/mem"
 
 	models "github.com/scarypuppp/metrics-service/internal/model"
 )
 
-type Collector struct{}
+type Collector struct {
+	metrics map[string]models.Metrics
+	mu      sync.RWMutex
+}
 
 func NewCollector() *Collector {
-	return &Collector{}
+	return &Collector{
+		metrics: make(map[string]models.Metrics),
+	}
 }
 
 func (c *Collector) CollectMetrics(pollCountValue int64) []models.Metrics {
+	c.mu.RLock()
 	runtimeMetrics := getMemStats()
 	var returnMetrics []models.Metrics
 	for metricName, metricValue := range runtimeMetrics {
@@ -42,8 +54,52 @@ func (c *Collector) CollectMetrics(pollCountValue int64) []models.Metrics {
 		Value: &randomValue,
 	}
 	returnMetrics = append(returnMetrics, randomValueMetric)
-
+	c.mu.RUnlock()
+	c.updateMetrics(returnMetrics)
 	return returnMetrics
+}
+
+func (c *Collector) CollectCustomMetrics() []models.Metrics {
+	c.mu.RLock()
+	var returnMetrics []models.Metrics
+	customStats := getCustomStats()
+	for metricName, metricValue := range customStats {
+		metric := models.Metrics{
+			ID:    metricName,
+			MType: models.Gauge,
+			Delta: nil,
+			Value: &metricValue,
+		}
+		returnMetrics = append(returnMetrics, metric)
+	}
+	c.mu.RUnlock()
+	c.updateMetrics(returnMetrics)
+	return returnMetrics
+}
+
+func (c *Collector) updateMetrics(metrics []models.Metrics) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, m := range metrics {
+		c.metrics[m.ID] = m
+	}
+}
+
+func getCustomStats() map[string]float64 {
+	vm, _ := mem.VirtualMemory()
+
+	result := map[string]float64{
+		"TotalMemory": float64(vm.Total),
+		"FreeMemory":  float64(vm.Free),
+	}
+
+	perCore, _ := cpu.Percent(time.Second, true)
+	for i, usage := range perCore {
+		key := fmt.Sprintf("CPUutilization%d", i)
+		result[key] = usage
+	}
+
+	return result
 }
 
 func getMemStats() map[string]float64 {

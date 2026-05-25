@@ -13,6 +13,7 @@ const (
 	defaultPoolInterval   = int64(2)
 	defaultReportInterval = int64(10)
 	defaultKey            = ""
+	defaultRateLimit      = 16
 )
 
 type Config struct {
@@ -20,6 +21,7 @@ type Config struct {
 	PoolInterval   int64  `env:"POLL_INTERVAL"  `
 	ReportInterval int64  `env:"REPORT_INTERVAL"`
 	Key            string `env:"KEY"`
+	RateLimit      int    `env:"RATE_LIMIT"`
 }
 
 var addrRegexp = regexp.MustCompile(`^(https?://)?(localhost|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d{2,5})$`)
@@ -46,6 +48,7 @@ func GetConfig() (*Config, error) {
 	poolIntervalFlag := flag.Int64("p", defaultPoolInterval, "pool interval in seconds")
 	reportIntervalFlag := flag.Int64("r", defaultReportInterval, "report interval in seconds")
 	keyFlag := flag.String("k", defaultKey, "key to calculate data hash")
+	ratelimitKey := flag.Int("l", defaultRateLimit, "rate limit to send data")
 	flag.Parse()
 
 	if config.ServerAddr == "" {
@@ -59,6 +62,9 @@ func GetConfig() (*Config, error) {
 	}
 	if config.Key == "" {
 		config.Key = *keyFlag
+	}
+	if config.RateLimit == 0 {
+		config.RateLimit = *ratelimitKey
 	}
 	addr, err := parseAddr(config.ServerAddr)
 	if err != nil {

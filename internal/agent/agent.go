@@ -4,12 +4,14 @@ import (
 	"context"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	models "github.com/scarypuppp/metrics-service/internal/model"
 )
 
 type IMetricCollector interface {
+	GetCollectedMetrics() []models.Metrics
 	CollectMetrics(pollCountValue int64) []models.Metrics
 	CollectCustomMetrics() []models.Metrics
 }
@@ -24,55 +26,46 @@ type Agent struct {
 	metricsPool  sync.Pool
 	poolTicker   *time.Ticker
 	reportTicker *time.Ticker
-	pollCount    int64
+	pollCount    atomic.Int64
 }
 
 func NewAgent(collector IMetricCollector, sender IMetricSender, poolInterval int64, reportInterval int64) *Agent {
-	return &Agent{
+	agent := Agent{
 		collector:    collector,
 		sender:       sender,
 		poolTicker:   time.NewTicker(time.Duration(poolInterval) * time.Second),
 		reportTicker: time.NewTicker(time.Duration(reportInterval) * time.Second),
 	}
+	agent.metricsPool = sync.Pool{
+		New: func() interface{} {
+			return make([]models.Metrics, 0)
+		},
+	}
+	return &agent
 }
 
-func (p *Agent) RunCollectMetricsWorker(collectType string, resultsCh chan<- models.Metrics) {
-	var metrics []models.Metrics
-	switch collectType {
-	case "1":
-		log.Println("Collecting Runtime")
-		metrics = p.collector.CollectMetrics(p.pollCount)
-	case "2":
-		log.Println("Collecting Custom")
-		metrics = p.collector.CollectCustomMetrics()
-	}
-	for _, m := range metrics {
-		resultsCh <- m
-	}
+func (p *Agent) CollectRuntimeWorker(resultsCh chan<- []models.Metrics) {
+	log.Printf("CollectRuntimeWorker started")
+	resultsCh <- p.collector.CollectMetrics(p.pollCount.Load())
+	log.Printf("CollectRuntimeWorker done")
+}
+
+func (p *Agent) CollectCustomWorker(resultsCh chan<- []models.Metrics) {
+	log.Printf("CollectCustomWorker started")
+	resultsCh <- p.collector.CollectCustomMetrics()
+	log.Printf("CollectCustomWorker done")
 }
 
 func (p *Agent) RunSendMetricWorker(id int, metricsCh <-chan models.Metrics, sendResultsCh chan<- error) {
 	log.Printf("SendMetric worker %d started", id)
 	currMetric := <-metricsCh
-	log.Printf("SendMetric worker %d metric %s", id, currMetric.ID)
-	time.Sleep(10 * time.Millisecond)
-	sendResultsCh <- nil
+	sendResultsCh <- p.sender.SendMetric(currMetric)
 	log.Printf("SendMetric worker %d done", id)
 }
 
 func (p *Agent) RunCtx(ctx context.Context, rateLimit int) {
 	defer p.poolTicker.Stop()
 	defer p.reportTicker.Stop()
-
-	collectMetricsOutCh := make(chan models.Metrics)
-	sendInCh := make(chan models.Metrics)
-	sendOutCh := make(chan error)
-
-	defer close(collectMetricsOutCh)
-	defer close(sendInCh)
-	defer close(sendOutCh)
-
-	var collectedMetrics []models.Metrics
 
 	for {
 		select {
@@ -81,18 +74,53 @@ func (p *Agent) RunCtx(ctx context.Context, rateLimit int) {
 			return
 		case <-p.poolTicker.C:
 			log.Println("POOL!")
+			collectMetricsOutCh := make(chan []models.Metrics, 2)
+			var wg sync.WaitGroup
+			wg.Add(2)
 			go func() {
-				for m := range collectMetricsOutCh {
-					collectedMetrics = append(collectedMetrics, m)
-				}
+				p.CollectRuntimeWorker(collectMetricsOutCh)
+				wg.Done()
 			}()
-			go p.RunCollectMetricsWorker("1", collectMetricsOutCh)
-			go p.RunCollectMetricsWorker("2", collectMetricsOutCh)
+			go func() {
+				p.CollectCustomWorker(collectMetricsOutCh)
+				wg.Done()
+			}()
+			go func() {
+				var collectedMetrics []models.Metrics
+				for metrics := range collectMetricsOutCh {
+					collectedMetrics = append(collectedMetrics, metrics...)
+				}
+				p.metricsPool.Put(collectedMetrics)
+			}()
+			go func() {
+				wg.Wait()
+				p.pollCount.Add(1)
+				close(collectMetricsOutCh)
+			}()
 		case <-p.reportTicker.C:
-			log.Println("REPORT!")
+			metrics := p.metricsPool.Get().([]models.Metrics)
+			if len(metrics) == 0 {
+				break
+			}
+			sendInCh := make(chan models.Metrics, len(metrics))
+			sendOutCh := make(chan error, len(metrics))
 			for i := 0; i < rateLimit; i++ {
 				go p.RunSendMetricWorker(i, sendInCh, sendOutCh)
 			}
+			go func() {
+				for _, m := range metrics {
+					sendInCh <- m
+				}
+			}()
+			go func() {
+				for err := range sendOutCh {
+					if err != nil {
+						log.Printf("ERROR SENDING METRIC: %s", err)
+					}
+				}
+				close(sendInCh)
+				close(sendOutCh)
+			}()
 		}
 	}
 }

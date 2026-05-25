@@ -24,6 +24,16 @@ func NewCollector() *Collector {
 	}
 }
 
+func (c *Collector) GetCollectedMetrics() []models.Metrics {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	metrics := make([]models.Metrics, 0, len(c.metrics))
+	for _, m := range c.Metrics {
+		metrics = append(metrics, m)
+	}
+	return metrics
+}
+
 func (c *Collector) CollectMetrics(pollCountValue int64) []models.Metrics {
 	c.mu.RLock()
 	runtimeMetrics := getMemStats()

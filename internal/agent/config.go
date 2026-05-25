@@ -13,7 +13,7 @@ const (
 	defaultPoolInterval   = int64(2)
 	defaultReportInterval = int64(10)
 	defaultKey            = ""
-	defaultRateLimit      = 16
+	defaultRateLimit      = 1
 )
 
 type Config struct {

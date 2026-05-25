@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -22,6 +23,14 @@ func (m *mockCollector) CollectMetrics(pollCountValue int64) []models.Metrics {
 	value := 1.0
 	return []models.Metrics{
 		{ID: "TestGauge", MType: models.Gauge, Value: &value},
+	}
+}
+
+func (m *mockCollector) CollectCustomMetrics() []models.Metrics {
+	m.callCount.Add(1)
+	value := 1.0
+	return []models.Metrics{
+		{ID: "TestCustomGauge", MType: models.Gauge, Value: &value},
 	}
 }
 
@@ -52,7 +61,9 @@ func TestAgent_CollectsOnPollInterval(t *testing.T) {
 	sender := &mockSender{}
 
 	a := agent.NewAgent(collector, sender, 1, 999)
-	go a.Run()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go a.RunCtx(ctx, 10)
 	time.Sleep(3 * time.Second)
 
 	if collector.callCount.Load() == 0 {
@@ -66,7 +77,9 @@ func TestAgent_SendsOnReportInterval(t *testing.T) {
 
 	a := agent.NewAgent(collector, sender, 1, 2)
 
-	go a.Run()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go a.RunCtx(ctx, 10)
 	time.Sleep(3 * time.Second)
 
 	if len(sender.getSent()) == 0 {
@@ -80,7 +93,9 @@ func TestAgent_SendsCollectedMetrics(t *testing.T) {
 
 	a := agent.NewAgent(collector, sender, 1, 2)
 
-	go a.Run()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go a.RunCtx(ctx, 10)
 	time.Sleep(3 * time.Second)
 
 	for _, m := range sender.getSent() {

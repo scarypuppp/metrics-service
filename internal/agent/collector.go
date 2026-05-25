@@ -5,7 +5,6 @@ import (
 	"math/rand/v2"
 	"runtime"
 	"sync"
-	"time"
 
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/mem"
@@ -24,18 +23,9 @@ func NewCollector() *Collector {
 	}
 }
 
-func (c *Collector) GetCollectedMetrics() []models.Metrics {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	metrics := make([]models.Metrics, 0, len(c.metrics))
-	for _, m := range c.Metrics {
-		metrics = append(metrics, m)
-	}
-	return metrics
-}
-
 func (c *Collector) CollectMetrics(pollCountValue int64) []models.Metrics {
 	c.mu.RLock()
+	defer c.mu.RUnlock()
 	runtimeMetrics := getMemStats()
 	var returnMetrics []models.Metrics
 	for metricName, metricValue := range runtimeMetrics {
@@ -64,13 +54,13 @@ func (c *Collector) CollectMetrics(pollCountValue int64) []models.Metrics {
 		Value: &randomValue,
 	}
 	returnMetrics = append(returnMetrics, randomValueMetric)
-	c.mu.RUnlock()
-	c.updateMetrics(returnMetrics)
+
 	return returnMetrics
 }
 
 func (c *Collector) CollectCustomMetrics() []models.Metrics {
 	c.mu.RLock()
+	defer c.mu.RUnlock()
 	var returnMetrics []models.Metrics
 	customStats := getCustomStats()
 	for metricName, metricValue := range customStats {
@@ -82,17 +72,7 @@ func (c *Collector) CollectCustomMetrics() []models.Metrics {
 		}
 		returnMetrics = append(returnMetrics, metric)
 	}
-	c.mu.RUnlock()
-	c.updateMetrics(returnMetrics)
 	return returnMetrics
-}
-
-func (c *Collector) updateMetrics(metrics []models.Metrics) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for _, m := range metrics {
-		c.metrics[m.ID] = m
-	}
 }
 
 func getCustomStats() map[string]float64 {
@@ -103,9 +83,9 @@ func getCustomStats() map[string]float64 {
 		"FreeMemory":  float64(vm.Free),
 	}
 
-	perCore, _ := cpu.Percent(time.Second, true)
+	perCore, _ := cpu.Percent(0, true)
 	for i, usage := range perCore {
-		key := fmt.Sprintf("CPUutilization%d", i)
+		key := fmt.Sprintf("CPUutilization%d", i+1)
 		result[key] = usage
 	}
 

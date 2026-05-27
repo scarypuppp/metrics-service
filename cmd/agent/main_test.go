@@ -5,7 +5,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/scarypuppp/metrics-service/internal/agent"
@@ -59,75 +58,55 @@ func (m *mockSender) getSent() []models.Metrics {
 // Тесты
 
 func TestAgent_CollectsOnPollInterval(t *testing.T) {
-	synctest.Run(func() {
-		collector := &mockCollector{}
-		sender := &mockSender{}
-		logger := zap.NewNop()
+	collector := &mockCollector{}
+	sender := &mockSender{}
+	logger := zap.NewNop()
 
-		a := agent.NewAgent(collector, sender, *logger, 1, 999)
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+	a := agent.NewAgent(collector, sender, *logger, 1, 999)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-		go a.RunCtx(ctx, 10)
+	go a.RunCtx(ctx, 10)
+	time.Sleep(3 * time.Second)
 
-		// Даём агенту запуститься и заблокироваться на таймерах
-		synctest.Wait()
-
-		// Прокручиваем фиктивное время на 3 секунды — должно сработать 3 тика
-		time.Sleep(3 * time.Second)
-		synctest.Wait()
-
-		if collector.callCount.Load() == 0 {
-			t.Error("expected CollectMetrics to be called, got 0")
-		}
-	})
+	if collector.callCount.Load() == 0 {
+		t.Error("expected CollectMetrics to be called, got 0")
+	}
 }
 
 func TestAgent_SendsOnReportInterval(t *testing.T) {
-	synctest.Run(func() {
-		collector := &mockCollector{}
-		sender := &mockSender{}
-		logger := zap.NewNop()
+	collector := &mockCollector{}
+	sender := &mockSender{}
+	logger := zap.NewNop()
 
-		// pollInterval=1s, reportInterval=2s
-		a := agent.NewAgent(collector, sender, *logger, 1, 2)
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+	a := agent.NewAgent(collector, sender, *logger, 1, 2)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-		go a.RunCtx(ctx, 10)
+	go a.RunCtx(ctx, 10)
+	time.Sleep(3 * time.Second)
 
-		synctest.Wait()
-		time.Sleep(3 * time.Second)
-		synctest.Wait()
-
-		if len(sender.getSent()) == 0 {
-			t.Error("expected SendMetric to be called, got 0 sends")
-		}
-	})
+	if len(sender.getSent()) == 0 {
+		t.Error("expected SendMetric to be called, got 0 sends")
+	}
 }
 
 func TestAgent_SendsCollectedMetrics(t *testing.T) {
-	synctest.Run(func() {
-		collector := &mockCollector{}
-		sender := &mockSender{}
+	collector := &mockCollector{}
+	sender := &mockSender{}
+	logger := zap.NewNop()
 
-		logger := zap.NewNop()
+	a := agent.NewAgent(collector, sender, *logger, 1, 2)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-		a := agent.NewAgent(collector, sender, *logger, 1, 2)
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+	go a.RunCtx(ctx, 10)
+	time.Sleep(3 * time.Second)
 
-		go a.RunCtx(ctx, 10)
-
-		synctest.Wait()
-		time.Sleep(3 * time.Second)
-		synctest.Wait()
-
-		for _, m := range sender.getSent() {
-			if m.ID == "TestGauge" {
-				return
-			}
+	for _, m := range sender.getSent() {
+		if m.ID == "TestGauge" {
+			return
 		}
-		t.Error("expected TestGauge to be sent, not found")
-	})
+	}
+	t.Error("expected TestGauge to be sent, not found")
 }

@@ -72,7 +72,7 @@ func main() {
 				*serverConfig.Restore,
 			))
 		}
-		storage, err = repository.NewMemMetricsStorage(storageContext, opts...)
+		storage, err = repository.NewMemMetricsStorage(opts...)
 		if err != nil {
 			logger.Fatal("failed to setup memory storage", zap.Error(err))
 		}

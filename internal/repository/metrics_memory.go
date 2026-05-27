@@ -40,10 +40,7 @@ func WithFile(ctx context.Context, fileName string, storeIntervalSec int, restor
 	}
 }
 
-func NewMemMetricsStorage(ctx context.Context, opts ...Option) (*MemMetricsStorage, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+func NewMemMetricsStorage(opts ...Option) (*MemMetricsStorage, error) {
 	s := &MemMetricsStorage{Metrics: make(map[string]models.Metrics)}
 	for _, opt := range opts {
 		if err := opt(s); err != nil {

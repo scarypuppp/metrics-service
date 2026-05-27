@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-resty/resty/v2"
 	"github.com/scarypuppp/metrics-service/internal/agent"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -27,11 +28,19 @@ func main() {
 		},
 	})
 
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer logger.Sync()
+	zap.ReplaceGlobals(logger)
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	newAgent := agent.NewAgent(
 		agent.NewCollector(),
 		agent.NewSender(client, agentConfig.ServerAddr, agentConfig.Key),
+		*logger,
 		agentConfig.PoolInterval,
 		agentConfig.ReportInterval,
 	)

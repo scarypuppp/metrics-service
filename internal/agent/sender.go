@@ -3,13 +3,12 @@ package agent
 import (
 	"bytes"
 	"compress/gzip"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
 	"github.com/go-resty/resty/v2"
 	models "github.com/scarypuppp/metrics-service/internal/model"
+	"github.com/scarypuppp/metrics-service/internal/utils/hash"
 	"github.com/scarypuppp/metrics-service/internal/utils/retry"
 )
 
@@ -33,6 +32,7 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 			if err != nil {
 				return fmt.Errorf("failed to marshal metric: %w", err)
 			}
+			bodyHash := hash.GetHash(body, s.key)
 			// Сжимаем данные
 			compressedBody, err := compressData(body)
 			if err != nil {
@@ -43,7 +43,7 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 				SetHeader("Content-Encoding", "gzip").
 				SetBody(compressedBody)
 			if s.key != "" {
-				req.SetHeader("HashSHA256", getHash(compressedBody, s.key))
+				req.SetHeader("HashSHA256", bodyHash)
 			}
 			// Делаем запрос
 			resp, err := req.Post("/update/")
@@ -58,13 +58,6 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 		},
 		retry.IsNetworkError,
 	)
-}
-
-func getHash(body []byte, key string) string {
-	h := sha256.New()
-	h.Write(body)
-	h.Write([]byte(key))
-	return hex.EncodeToString(h.Sum(nil))
 }
 
 func compressData(data []byte) ([]byte, error) {

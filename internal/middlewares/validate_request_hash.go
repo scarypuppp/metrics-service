@@ -2,17 +2,29 @@ package middlewares
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"io"
 	"net/http"
+
+	"github.com/scarypuppp/metrics-service/internal/utils/hash"
 )
 
-func getHash(body []byte, key string) string {
-	h := sha256.New()
-	h.Write(body)
-	h.Write([]byte(key))
-	return hex.EncodeToString(h.Sum(nil))
+type responseCapture struct {
+	http.ResponseWriter
+	body       bytes.Buffer
+	statusCode int
+	headers    http.Header
+}
+
+func (rc *responseCapture) Header() http.Header {
+	return rc.headers
+}
+
+func (rc *responseCapture) Write(b []byte) (int, error) {
+	return rc.body.Write(b)
+}
+
+func (rc *responseCapture) WriteHeader(statusCode int) {
+	rc.statusCode = statusCode
 }
 
 func ValidateRequestHash(key string) func(http.Handler) http.Handler {
@@ -29,14 +41,30 @@ func ValidateRequestHash(key string) func(http.Handler) http.Handler {
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
 			}
-			expectedHash := getHash(buffer.Bytes(), key)
+			expectedHash := hash.GetHash(buffer.Bytes(), key)
 			if receivedHash != expectedHash {
 				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 				return
 			}
 			r.Body = io.NopCloser(&buffer)
-			w.Header().Set("HashSHA256", receivedHash)
-			next.ServeHTTP(w, r)
+
+			rc := &responseCapture{
+				ResponseWriter: w,
+				headers:        make(http.Header),
+				statusCode:     http.StatusOK,
+			}
+			next.ServeHTTP(rc, r)
+
+			// Вычисляем хэш тела ответа и проставляем заголовок
+			responseHash := hash.GetHash(rc.body.Bytes(), key)
+			rc.headers.Set("HashSHA256", responseHash)
+
+			// Копируем заголовки в реальный ResponseWriter и отправляем ответ
+			for k, v := range rc.headers {
+				w.Header()[k] = v
+			}
+			w.WriteHeader(rc.statusCode)
+			w.Write(rc.body.Bytes())
 		})
 	}
 }

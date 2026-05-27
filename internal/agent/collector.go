@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"runtime"
-	"sync"
 
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/mem"
@@ -12,20 +11,13 @@ import (
 	models "github.com/scarypuppp/metrics-service/internal/model"
 )
 
-type Collector struct {
-	metrics map[string]models.Metrics
-	mu      sync.RWMutex
-}
+type Collector struct{}
 
 func NewCollector() *Collector {
-	return &Collector{
-		metrics: make(map[string]models.Metrics),
-	}
+	return &Collector{}
 }
 
 func (c *Collector) CollectMetrics(pollCountValue int64) []models.Metrics {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
 	runtimeMetrics := getMemStats()
 	var returnMetrics []models.Metrics
 	for metricName, metricValue := range runtimeMetrics {
@@ -58,11 +50,12 @@ func (c *Collector) CollectMetrics(pollCountValue int64) []models.Metrics {
 	return returnMetrics
 }
 
-func (c *Collector) CollectCustomMetrics() []models.Metrics {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+func (c *Collector) CollectCustomMetrics() ([]models.Metrics, error) {
 	var returnMetrics []models.Metrics
-	customStats := getCustomStats()
+	customStats, err := getCustomStats()
+	if err != nil {
+		return nil, err
+	}
 	for metricName, metricValue := range customStats {
 		metric := models.Metrics{
 			ID:    metricName,
@@ -72,24 +65,30 @@ func (c *Collector) CollectCustomMetrics() []models.Metrics {
 		}
 		returnMetrics = append(returnMetrics, metric)
 	}
-	return returnMetrics
+	return returnMetrics, nil
 }
 
-func getCustomStats() map[string]float64 {
-	vm, _ := mem.VirtualMemory()
+func getCustomStats() (map[string]float64, error) {
+	vm, err := mem.VirtualMemory()
+	if err != nil {
+		return nil, err
+	}
 
 	result := map[string]float64{
 		"TotalMemory": float64(vm.Total),
 		"FreeMemory":  float64(vm.Free),
 	}
 
-	perCore, _ := cpu.Percent(0, true)
+	perCore, err := cpu.Percent(0, true)
+	if err != nil {
+		return nil, err
+	}
 	for i, usage := range perCore {
 		key := fmt.Sprintf("CPUutilization%d", i+1)
 		result[key] = usage
 	}
 
-	return result
+	return result, nil
 }
 
 func getMemStats() map[string]float64 {

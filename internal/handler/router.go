@@ -16,10 +16,10 @@ func GetAppRouter(
 
 	r.Use(middlewares.LogResponse)
 	r.Use(middlewares.CompressResponse)
+	r.Use(middlewares.DecompressRequest)
 	if key != "" {
 		r.Use(middlewares.ValidateRequestHash(key))
 	}
-	r.Use(middlewares.DecompressRequest)
 	r.Use(middlewares.LogRequest)
 
 	r.Route("/", func(r chi.Router) {

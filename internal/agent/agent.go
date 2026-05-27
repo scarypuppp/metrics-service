@@ -2,17 +2,17 @@ package agent
 
 import (
 	"context"
-	"log"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	models "github.com/scarypuppp/metrics-service/internal/model"
+	"go.uber.org/zap"
 )
 
 type IMetricCollector interface {
 	CollectMetrics(pollCountValue int64) []models.Metrics
-	CollectCustomMetrics() []models.Metrics
+	CollectCustomMetrics() ([]models.Metrics, error)
 }
 
 type IMetricSender interface {
@@ -22,6 +22,7 @@ type IMetricSender interface {
 type Agent struct {
 	collector        IMetricCollector
 	sender           IMetricSender
+	logger           zap.Logger
 	mu               sync.RWMutex
 	collectedMetrics []models.Metrics
 	collecting       atomic.Bool
@@ -30,10 +31,11 @@ type Agent struct {
 	pollCount        atomic.Int64
 }
 
-func NewAgent(collector IMetricCollector, sender IMetricSender, pollInterval int64, reportInterval int64) *Agent {
+func NewAgent(collector IMetricCollector, sender IMetricSender, logger zap.Logger, pollInterval int64, reportInterval int64) *Agent {
 	return &Agent{
 		collector:    collector,
 		sender:       sender,
+		logger:       logger,
 		pollTicker:   time.NewTicker(time.Duration(pollInterval) * time.Second),
 		reportTicker: time.NewTicker(time.Duration(reportInterval) * time.Second),
 	}
@@ -41,21 +43,25 @@ func NewAgent(collector IMetricCollector, sender IMetricSender, pollInterval int
 
 func (a *Agent) collectRuntimeWorker(resultsCh chan<- []models.Metrics) {
 	defer close(resultsCh)
-	defer log.Printf("collectRuntimeWorker done")
-	log.Printf("collectRuntimeWorker started")
+	defer a.logger.Info("collectRuntimeWorker done")
+	a.logger.Info("collectRuntimeWorker started")
 	resultsCh <- a.collector.CollectMetrics(a.pollCount.Load())
 }
 
 func (a *Agent) collectCustomWorker(resultsCh chan<- []models.Metrics) {
 	defer close(resultsCh)
-	defer log.Printf("collectCustomWorker done")
-	log.Printf("collectCustomWorker started")
-	resultsCh <- a.collector.CollectCustomMetrics()
+	defer a.logger.Info("collectCustomWorker done")
+	a.logger.Info("collectCustomWorker started")
+	result, err := a.collector.CollectCustomMetrics()
+	if err != nil {
+		a.logger.Error("Error collecting custom metrics", zap.Error(err))
+	}
+	resultsCh <- result
 }
 
 func (a *Agent) sendMetricsWorker(ctx context.Context, id int, sendInCh <-chan models.Metrics, sendOutCh chan<- error) {
-	defer log.Printf("SendMetric worker %d done", id)
-	log.Printf("SendMetric worker %d started", id)
+	defer a.logger.Info("SendMetric worker done", zap.Int("id", id))
+	a.logger.Info("SendMetric worker started", zap.Int("id", id))
 
 	for metric := range sendInCh {
 		select {
@@ -91,7 +97,7 @@ func fanIn(channels ...<-chan []models.Metrics) <-chan []models.Metrics {
 
 func (a *Agent) runCollect() {
 	if !a.collecting.CompareAndSwap(false, true) {
-		log.Println("Previous collection still running, skipping")
+		a.logger.Info("Previous collection still running, skipping")
 		return
 	}
 
@@ -115,7 +121,7 @@ func (a *Agent) runCollect() {
 		a.mu.Unlock()
 
 		a.pollCount.Add(1)
-		log.Printf("Collection done, total metrics: %d", len(collectedMetrics))
+		a.logger.Info("Collection done", zap.Int("count", len(collectedMetrics)))
 	}()
 }
 
@@ -126,12 +132,12 @@ func (a *Agent) runReport(ctx context.Context, rateLimit int) {
 	a.mu.RUnlock()
 
 	if len(metrics) == 0 {
-		log.Println("No metrics to report, skipping")
+		a.logger.Info("No metrics to report, skipping")
 		return
 	}
 
-	sendInCh := make(chan models.Metrics, len(metrics))
-	sendOutCh := make(chan error, len(metrics))
+	sendInCh := make(chan models.Metrics, rateLimit)
+	sendOutCh := make(chan error, rateLimit)
 
 	var workerWg sync.WaitGroup
 	for i := 0; i < rateLimit; i++ {
@@ -146,25 +152,21 @@ func (a *Agent) runReport(ctx context.Context, rateLimit int) {
 		for _, m := range metrics {
 			select {
 			case <-ctx.Done():
-				break
+				return
 			case sendInCh <- m:
 			}
 		}
 		close(sendInCh)
 	}()
-
-	go func() {
-		workerWg.Wait()
-		close(sendOutCh)
-	}()
-
 	go func() {
 		for err := range sendOutCh {
 			if err != nil {
-				log.Printf("ERROR SENDING METRIC: %s", err)
+				a.logger.Error("ERROR SENDING METRIC", zap.Error(err))
 			}
 		}
 	}()
+	workerWg.Wait()
+	close(sendOutCh)
 }
 
 func (a *Agent) RunCtx(ctx context.Context, rateLimit int) {
@@ -174,13 +176,13 @@ func (a *Agent) RunCtx(ctx context.Context, rateLimit int) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("Stopping agent...")
+			a.logger.Info("Stopping agent...")
 			return
 		case <-a.pollTicker.C:
-			log.Println("Poll tick")
+			a.logger.Debug("Poll tick")
 			a.runCollect()
 		case <-a.reportTicker.C:
-			log.Println("Report tick")
+			a.logger.Debug("Report tick")
 			a.runReport(ctx, rateLimit)
 		}
 	}

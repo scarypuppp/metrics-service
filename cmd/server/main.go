@@ -72,7 +72,7 @@ func main() {
 				*serverConfig.Restore,
 			))
 		}
-		storage, err = repository.NewMemMetricsStorage(storageContext, opts...)
+		storage, err = repository.NewMemMetricsStorage(opts...)
 		if err != nil {
 			logger.Fatal("failed to setup memory storage", zap.Error(err))
 		}
@@ -84,9 +84,8 @@ func main() {
 		storage = repository.NewDBMetricsStorage(dbObj)
 		logger.Info("Using database storage")
 	}
-
 	metricService := service.NewMetricService(storage)
-	router := handlers.GetAppRouter(*metricService, dbObj)
+	router := handlers.GetAppRouter(serverConfig.Key, *metricService, dbObj)
 
 	srv := &http.Server{
 		Addr:         serverConfig.Addr,

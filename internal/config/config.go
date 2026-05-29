@@ -14,6 +14,7 @@ const (
 	defaultFileStoragePath = "metrics.json"
 	defaultRestore         = true
 	defaultDatabaseDsn     = ""
+	defaultKey             = ""
 )
 
 type Config struct {
@@ -22,6 +23,7 @@ type Config struct {
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	Restore         *bool  `env:"RESTORE"`
 	DatabaseDSN     string `env:"DATABASE_DSN"`
+	Key             string `env:"KEY"`
 }
 
 var addrRegexp = regexp.MustCompile(`^(https?://)?(localhost|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})?:(\d{2,5})$`)
@@ -47,6 +49,7 @@ func GetConfig() (*Config, error) {
 	fileStoragePathFlag := flag.String("f", defaultFileStoragePath, "metrics storage file path")
 	restoreFlag := flag.Bool("r", defaultRestore, "restore metrics from file")
 	databaseDsnFlag := flag.String("d", defaultDatabaseDsn, "database dsn string")
+	keyFlag := flag.String("k", defaultKey, "key to calculate data hash")
 	flag.Parse()
 
 	if config.Addr == "" {
@@ -64,7 +67,9 @@ func GetConfig() (*Config, error) {
 	if config.DatabaseDSN == "" {
 		config.DatabaseDSN = *databaseDsnFlag
 	}
-
+	if config.Key == "" {
+		config.Key = *keyFlag
+	}
 	addr, err := parseAddr(config.Addr)
 	if err != nil {
 		return nil, err

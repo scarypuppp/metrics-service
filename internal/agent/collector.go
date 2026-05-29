@@ -1,8 +1,12 @@
 package agent
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"runtime"
+
+	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/mem"
 
 	models "github.com/scarypuppp/metrics-service/internal/model"
 )
@@ -44,6 +48,47 @@ func (c *Collector) CollectMetrics(pollCountValue int64) []models.Metrics {
 	returnMetrics = append(returnMetrics, randomValueMetric)
 
 	return returnMetrics
+}
+
+func (c *Collector) CollectCustomMetrics() ([]models.Metrics, error) {
+	var returnMetrics []models.Metrics
+	customStats, err := getCustomStats()
+	if err != nil {
+		return nil, err
+	}
+	for metricName, metricValue := range customStats {
+		metric := models.Metrics{
+			ID:    metricName,
+			MType: models.Gauge,
+			Delta: nil,
+			Value: &metricValue,
+		}
+		returnMetrics = append(returnMetrics, metric)
+	}
+	return returnMetrics, nil
+}
+
+func getCustomStats() (map[string]float64, error) {
+	vm, err := mem.VirtualMemory()
+	if err != nil {
+		return nil, err
+	}
+
+	result := map[string]float64{
+		"TotalMemory": float64(vm.Total),
+		"FreeMemory":  float64(vm.Free),
+	}
+
+	perCore, err := cpu.Percent(0, true)
+	if err != nil {
+		return nil, err
+	}
+	for i, usage := range perCore {
+		key := fmt.Sprintf("CPUutilization%d", i+1)
+		result[key] = usage
+	}
+
+	return result, nil
 }
 
 func getMemStats() map[string]float64 {

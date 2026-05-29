@@ -8,6 +8,7 @@ import (
 )
 
 func GetAppRouter(
+	key string,
 	metricService service.MetricService,
 	db *sqlx.DB,
 ) chi.Router {
@@ -16,6 +17,9 @@ func GetAppRouter(
 	r.Use(middlewares.LogResponse)
 	r.Use(middlewares.CompressResponse)
 	r.Use(middlewares.DecompressRequest)
+	if key != "" {
+		r.Use(middlewares.ValidateRequestHash(key))
+	}
 	r.Use(middlewares.LogRequest)
 
 	r.Route("/", func(r chi.Router) {

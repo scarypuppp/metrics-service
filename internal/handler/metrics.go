@@ -101,6 +101,9 @@ func GetMetricHandler(metricService service.MetricService) http.HandlerFunc {
 		}
 
 		responseData, err := json.Marshal(existingMetric)
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		w.Write(responseData)

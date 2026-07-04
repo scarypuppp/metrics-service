@@ -3,15 +3,12 @@ package audit
 import (
 	"fmt"
 	"sync"
-	"time"
-
-	models "github.com/scarypuppp/metrics-service/internal/model"
 )
 
 type Event struct {
-	Timestamp time.Time
-	Metrics   []models.Metrics
-	Address   string
+	Timestamp int64    `json:"ts"`
+	Metrics   []string `json:"metrics"`
+	Address   string   `json:"ip_address"`
 }
 
 type Publisher struct {
@@ -52,7 +49,7 @@ func (p *Publisher) Publish(event Event) {
 		select {
 		case ch <- event:
 		default:
-			fmt.Printf("подписчик %s не успевает, событие пропущено\n", id)
+			fmt.Printf("event skipped", id)
 		}
 	}
 }

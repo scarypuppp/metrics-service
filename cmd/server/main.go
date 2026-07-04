@@ -86,7 +86,6 @@ func main() {
 		logger.Info("Using database storage")
 	}
 	metricService := service.NewMetricService(storage)
-	router := handlers.GetAppRouter(serverConfig.Key, *metricService, dbObj)
 
 	publisher := audit.NewPublisher()
 	subsCtx, subsCancel := context.WithCancel(context.Background())
@@ -110,6 +109,13 @@ func main() {
 			subscribers = append(subscribers, urlSub)
 		}
 	}
+
+	router := handlers.GetAppRouter(
+		serverConfig.Key,
+		*metricService,
+		publisher,
+		dbObj,
+	)
 
 	srv := &http.Server{
 		Addr:         serverConfig.Addr,

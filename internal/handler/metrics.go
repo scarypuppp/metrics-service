@@ -7,12 +7,24 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/scarypuppp/metrics-service/internal/audit"
+	"github.com/scarypuppp/metrics-service/internal/middlewares"
 	models "github.com/scarypuppp/metrics-service/internal/model"
 	"github.com/scarypuppp/metrics-service/internal/service"
 	"go.uber.org/zap"
 )
+
+func sendEvent(p *audit.Publisher, rt time.Time, ms []models.Metrics, addr string) {
+	var metricNames []string
+	for _, m := range ms {
+		metricNames = append(metricNames, m.ID)
+	}
+	event := audit.Event{Timestamp: rt.Unix(), Metrics: metricNames, Address: addr}
+	p.Publish(event)
+}
 
 func RetrieveMetricsHandler(metricService service.MetricService) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
@@ -110,12 +122,11 @@ func GetMetricHandler(metricService service.MetricService) http.HandlerFunc {
 	}
 }
 
-func UpdateMetricByURLHandler(metricService service.MetricService) http.HandlerFunc {
+func UpdateMetricByURLHandler(metricService service.MetricService, publisher *audit.Publisher) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		//Обработка запроса
-		if req.Method != http.MethodPost {
-			http.Error(w, "Only POST requests are allowed!", http.StatusMethodNotAllowed)
-			return
+		requestIP, ok := req.Context().Value(middlewares.RequestIPKey).(string)
+		if !ok {
+			requestIP = "unknown"
 		}
 		metricType := chi.URLParam(req, "metricType")
 		metricName := chi.URLParam(req, "metricName")
@@ -151,6 +162,8 @@ func UpdateMetricByURLHandler(metricService service.MetricService) http.HandlerF
 			return
 		}
 
+		sendEvent(publisher, time.Now(), []models.Metrics{*metric}, requestIP)
+
 		// Формирование ответа
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
@@ -158,8 +171,12 @@ func UpdateMetricByURLHandler(metricService service.MetricService) http.HandlerF
 	}
 }
 
-func UpdateMetricHandler(metricService service.MetricService) http.HandlerFunc {
+func UpdateMetricHandler(metricService service.MetricService, publisher *audit.Publisher) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		requestIP, ok := req.Context().Value(middlewares.RequestIPKey).(string)
+		if !ok {
+			requestIP = "unknown"
+		}
 		var metric models.Metrics
 		var buffer bytes.Buffer
 		_, err := buffer.ReadFrom(req.Body)
@@ -193,12 +210,19 @@ func UpdateMetricHandler(metricService service.MetricService) http.HandlerFunc {
 			}
 			return
 		}
+
+		sendEvent(publisher, time.Now(), []models.Metrics{metric}, requestIP)
+
 		w.WriteHeader(http.StatusOK)
 	}
 }
 
-func UpdateMetricsHandler(metricService service.MetricService) http.HandlerFunc {
+func UpdateMetricsHandler(metricService service.MetricService, publisher *audit.Publisher) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		requestIP, ok := req.Context().Value(middlewares.RequestIPKey).(string)
+		if !ok {
+			requestIP = "unknown"
+		}
 		var metrics []models.Metrics
 		var buffer bytes.Buffer
 
@@ -224,6 +248,9 @@ func UpdateMetricsHandler(metricService service.MetricService) http.HandlerFunc 
 			}
 			return
 		}
+
+		sendEvent(publisher, time.Now(), metrics, requestIP)
+
 		w.WriteHeader(http.StatusOK)
 	}
 }

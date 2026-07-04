@@ -15,6 +15,8 @@ const (
 	defaultRestore         = true
 	defaultDatabaseDsn     = ""
 	defaultKey             = ""
+	defaultAuditFile       = "audit.json"
+	defaultAuditUrl        = ""
 )
 
 type Config struct {
@@ -24,6 +26,8 @@ type Config struct {
 	Restore         *bool  `env:"RESTORE"`
 	DatabaseDSN     string `env:"DATABASE_DSN"`
 	Key             string `env:"KEY"`
+	AuditFile       string `env:"AUDIT_FILE"`
+	AuditUrl        string `env:"AUDIT_URL"`
 }
 
 var addrRegexp = regexp.MustCompile(`^(https?://)?(localhost|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})?:(\d{2,5})$`)
@@ -50,6 +54,8 @@ func GetConfig() (*Config, error) {
 	restoreFlag := flag.Bool("r", defaultRestore, "restore metrics from file")
 	databaseDsnFlag := flag.String("d", defaultDatabaseDsn, "database dsn string")
 	keyFlag := flag.String("k", defaultKey, "key to calculate data hash")
+	auditFileFlag := flag.String("audit-file", defaultAuditFile, "audit file path")
+	auditUrlFlag := flag.String("audit-url", defaultAuditUrl, "audit url path")
 	flag.Parse()
 
 	if config.Addr == "" {
@@ -69,6 +75,12 @@ func GetConfig() (*Config, error) {
 	}
 	if config.Key == "" {
 		config.Key = *keyFlag
+	}
+	if config.AuditFile == "" {
+		config.AuditFile = *auditFileFlag
+	}
+	if config.AuditUrl == "" {
+		config.AuditUrl = *auditUrlFlag
 	}
 	addr, err := parseAddr(config.Addr)
 	if err != nil {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
+	"github.com/scarypuppp/metrics-service/internal/audit"
 	"github.com/scarypuppp/metrics-service/internal/config"
 	"github.com/scarypuppp/metrics-service/internal/handler"
 	"github.com/scarypuppp/metrics-service/internal/infrastructure/postgres"
@@ -87,6 +88,29 @@ func main() {
 	metricService := service.NewMetricService(storage)
 	router := handlers.GetAppRouter(serverConfig.Key, *metricService, dbObj)
 
+	publisher := audit.NewPublisher()
+	subsCtx, subsCancel := context.WithCancel(context.Background())
+	defer subsCancel()
+
+	var subscribers []audit.Subscriber // interface { Wait(); Stop() }
+
+	if serverConfig.AuditFile != "" {
+		fileSub, err := audit.NewFileSubscriber(subsCtx, publisher, "file", serverConfig.AuditFile)
+		if err != nil {
+			logger.Error("error starting file audit subscriber", zap.Error(err))
+		} else {
+			subscribers = append(subscribers, fileSub)
+		}
+	}
+	if serverConfig.AuditUrl != "" {
+		urlSub, err := audit.NewURLSubscriber(subsCtx, publisher, "url", serverConfig.AuditUrl)
+		if err != nil {
+			logger.Error("error starting url audit subscriber", zap.Error(err))
+		} else {
+			subscribers = append(subscribers, urlSub)
+		}
+	}
+
 	srv := &http.Server{
 		Addr:         serverConfig.Addr,
 		Handler:      router,
@@ -109,11 +133,32 @@ func main() {
 	<-quit
 	logger.Info("Shutting down server...")
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		logger.Fatal("Server forced to shutdown", zap.Error(err))
+		logger.Error("Server forced to shutdown", zap.Error(err))
+	}
+
+	publisher.Close()
+
+	// 3. Ждём подписчиков с таймаутом
+	subsDone := make(chan struct{})
+	go func() {
+		for _, s := range subscribers {
+			s.Wait()
+		}
+		close(subsDone)
+	}()
+
+	select {
+	case <-subsDone:
+		logger.Info("audit subscribers finished")
+	case <-time.After(10 * time.Second):
+		logger.Warn("audit subscribers timed out, forcing stop")
+		for _, s := range subscribers {
+			s.Stop()
+		}
 	}
 
 	logger.Info("Server stopped gracefully")

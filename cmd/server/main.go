@@ -101,8 +101,8 @@ func main() {
 			subscribers = append(subscribers, fileSub)
 		}
 	}
-	if serverConfig.AuditUrl != "" {
-		urlSub, err := audit.NewURLSubscriber(subsCtx, publisher, "url", serverConfig.AuditUrl)
+	if serverConfig.AuditURL != "" {
+		urlSub, err := audit.NewURLSubscriber(subsCtx, publisher, "url", serverConfig.AuditURL)
 		if err != nil {
 			logger.Error("error starting url audit subscriber", zap.Error(err))
 		} else {

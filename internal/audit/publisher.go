@@ -49,7 +49,7 @@ func (p *Publisher) Publish(event Event) {
 		select {
 		case ch <- event:
 		default:
-			fmt.Printf("event skipped", id)
+			fmt.Printf("event skipped %s", id)
 		}
 	}
 }

@@ -16,7 +16,7 @@ const (
 	defaultDatabaseDsn     = ""
 	defaultKey             = ""
 	defaultAuditFile       = "audit.json"
-	defaultAuditUrl        = ""
+	defaultAuditURL        = ""
 )
 
 type Config struct {
@@ -27,7 +27,7 @@ type Config struct {
 	DatabaseDSN     string `env:"DATABASE_DSN"`
 	Key             string `env:"KEY"`
 	AuditFile       string `env:"AUDIT_FILE"`
-	AuditUrl        string `env:"AUDIT_URL"`
+	AuditURL        string `env:"AUDIT_URL"`
 }
 
 var addrRegexp = regexp.MustCompile(`^(https?://)?(localhost|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})?:(\d{2,5})$`)
@@ -55,7 +55,7 @@ func GetConfig() (*Config, error) {
 	databaseDsnFlag := flag.String("d", defaultDatabaseDsn, "database dsn string")
 	keyFlag := flag.String("k", defaultKey, "key to calculate data hash")
 	auditFileFlag := flag.String("audit-file", defaultAuditFile, "audit file path")
-	auditUrlFlag := flag.String("audit-url", defaultAuditUrl, "audit url path")
+	auditURLFlag := flag.String("audit-url", defaultAuditURL, "audit url path")
 	flag.Parse()
 
 	if config.Addr == "" {
@@ -79,8 +79,8 @@ func GetConfig() (*Config, error) {
 	if config.AuditFile == "" {
 		config.AuditFile = *auditFileFlag
 	}
-	if config.AuditUrl == "" {
-		config.AuditUrl = *auditUrlFlag
+	if config.AuditURL == "" {
+		config.AuditURL = *auditURLFlag
 	}
 	addr, err := parseAddr(config.Addr)
 	if err != nil {

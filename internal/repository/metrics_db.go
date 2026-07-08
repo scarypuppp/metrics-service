@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/scarypuppp/metrics-service/internal/model"
+	models "github.com/scarypuppp/metrics-service/internal/model"
 	"github.com/scarypuppp/metrics-service/internal/utils/retry"
 )
 

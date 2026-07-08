@@ -13,7 +13,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/scarypuppp/metrics-service/internal/audit"
 	"github.com/scarypuppp/metrics-service/internal/config"
-	"github.com/scarypuppp/metrics-service/internal/handler"
+	handlers "github.com/scarypuppp/metrics-service/internal/handler"
 	"github.com/scarypuppp/metrics-service/internal/infrastructure/postgres"
 	"github.com/scarypuppp/metrics-service/internal/repository"
 	"github.com/scarypuppp/metrics-service/internal/service"

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jmoiron/sqlx"
 	"github.com/scarypuppp/metrics-service/internal/audit"
 	"github.com/scarypuppp/metrics-service/internal/middlewares"
@@ -23,6 +24,8 @@ func GetAppRouter(
 		r.Use(middlewares.ValidateRequestHash(key))
 	}
 	r.Use(middlewares.LogRequest)
+
+	r.Mount("/debug", middleware.Profiler())
 
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", RetrieveMetricsHandler(metricService))

@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -39,17 +41,19 @@ func RetrieveMetricsHandler(metricService service.MetricService) http.HandlerFun
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		formattedMetrics := "<pre style=\"word-wrap: break-word; white-space: pre-wrap;\">"
 		// Формирование ответа
+		var sb strings.Builder
+		sb.Grow(128 + 80*len(metrics))
+		sb.WriteString(`<html><head><meta name="color-scheme" content="light dark"></head><body>` +
+			`<pre style="word-wrap: break-word; white-space: pre-wrap;">`)
 		for _, m := range metrics {
-			formattedMetrics += fmt.Sprintf("# HELP %s\n# TYPE %s %s\n%s %s\n", m.ID, m.ID, m.MType, m.ID, m.StringValue())
+			fmt.Fprintf(&sb, "# HELP %s\n# TYPE %s %s\n%s %s\n", m.ID, m.ID, m.MType, m.ID, m.StringValue())
 		}
-		formattedMetrics += "</pre>"
+		sb.WriteString(`</pre></body></html>`)
 
-		content := fmt.Sprintf(`<html><head><meta name="color-scheme" content="light dark"></head><body>%s</body></html>`, formattedMetrics)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(content))
+		io.WriteString(w, sb.String())
 	}
 }
 

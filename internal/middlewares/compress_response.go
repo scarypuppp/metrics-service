@@ -5,7 +5,18 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 )
+
+// gzipWriterPool переиспользует gzip.Writer между запросами:
+// внутренний flate-компрессор аллоцируется один раз,
+// а не на каждый ответ.
+var gzipWriterPool = sync.Pool{
+	New: func() any {
+		gz, _ := gzip.NewWriterLevel(io.Discard, gzip.BestSpeed)
+		return gz
+	},
+}
 
 type gzipWriter struct {
 	http.ResponseWriter
@@ -22,12 +33,12 @@ func CompressResponse(handler http.Handler) http.Handler {
 			handler.ServeHTTP(w, r)
 			return
 		}
-		gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
-		if err != nil {
-			io.WriteString(w, err.Error())
-			return
-		}
-		defer gz.Close()
+		gz := gzipWriterPool.Get().(*gzip.Writer)
+		gz.Reset(w)
+		defer func() {
+			gz.Close()
+			gzipWriterPool.Put(gz)
+		}()
 		w.Header().Set("Content-Encoding", "gzip")
 		handler.ServeHTTP(gzipWriter{ResponseWriter: w, Writer: gz}, r)
 	})

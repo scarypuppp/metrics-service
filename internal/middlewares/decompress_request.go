@@ -15,6 +15,7 @@ var gzipReaderPool = sync.Pool{
 	},
 }
 
+// DecompressRequest is a middleware that transparently decompresses gzip-encoded request bodies.
 func DecompressRequest(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {

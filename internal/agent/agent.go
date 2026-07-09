@@ -10,15 +10,18 @@ import (
 	"go.uber.org/zap"
 )
 
+// IMetricCollector interface for metric collecting operations.
 type IMetricCollector interface {
 	CollectMetrics(pollCountValue int64) []models.Metrics
 	CollectCustomMetrics() ([]models.Metrics, error)
 }
 
+// IMetricSender interface for metric sending operations
 type IMetricSender interface {
 	SendMetric(metric models.Metrics) error
 }
 
+// Agent represents object collecting and sending metrics.
 type Agent struct {
 	collector        IMetricCollector
 	sender           IMetricSender
@@ -31,6 +34,7 @@ type Agent struct {
 	pollCount        atomic.Int64
 }
 
+// NewAgent constructor method for Agent object.
 func NewAgent(collector IMetricCollector, sender IMetricSender, logger zap.Logger, pollInterval int64, reportInterval int64) *Agent {
 	return &Agent{
 		collector:    collector,
@@ -41,6 +45,27 @@ func NewAgent(collector IMetricCollector, sender IMetricSender, logger zap.Logge
 	}
 }
 
+// RunCtx method starts agent collecting and reporting metrics.
+func (a *Agent) RunCtx(ctx context.Context, rateLimit int) {
+	defer a.pollTicker.Stop()
+	defer a.reportTicker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			a.logger.Info("Stopping agent...")
+			return
+		case <-a.pollTicker.C:
+			a.logger.Debug("Poll tick")
+			a.runCollect()
+		case <-a.reportTicker.C:
+			a.logger.Debug("Report tick")
+			a.runReport(ctx, rateLimit)
+		}
+	}
+}
+
+// collectRuntimeWorker represents worker that collects runtime metrics.
 func (a *Agent) collectRuntimeWorker(resultsCh chan<- []models.Metrics) {
 	defer close(resultsCh)
 	defer a.logger.Info("collectRuntimeWorker done")
@@ -48,6 +73,7 @@ func (a *Agent) collectRuntimeWorker(resultsCh chan<- []models.Metrics) {
 	resultsCh <- a.collector.CollectMetrics(a.pollCount.Load())
 }
 
+// collectCustomWorker represents worker that collects custom metrics.
 func (a *Agent) collectCustomWorker(resultsCh chan<- []models.Metrics) {
 	defer close(resultsCh)
 	defer a.logger.Info("collectCustomWorker done")
@@ -59,6 +85,7 @@ func (a *Agent) collectCustomWorker(resultsCh chan<- []models.Metrics) {
 	resultsCh <- result
 }
 
+// sendMetricsWorker represents worker that sends metrics to the server.
 func (a *Agent) sendMetricsWorker(ctx context.Context, id int, sendInCh <-chan models.Metrics, sendOutCh chan<- error) {
 	defer a.logger.Info("SendMetric worker done", zap.Int("id", id))
 	a.logger.Info("SendMetric worker started", zap.Int("id", id))
@@ -73,6 +100,8 @@ func (a *Agent) sendMetricsWorker(ctx context.Context, id int, sendInCh <-chan m
 	}
 }
 
+// fanIn implementation of FanIn async pattern.
+// Aggregates runtime metrics and custom metrics from various collecting workers.
 func fanIn(channels ...<-chan []models.Metrics) <-chan []models.Metrics {
 	mergedCh := make(chan []models.Metrics)
 	var wg sync.WaitGroup
@@ -95,6 +124,7 @@ func fanIn(channels ...<-chan []models.Metrics) <-chan []models.Metrics {
 	return mergedCh
 }
 
+// runCollect entrypoint to start collect metrics.
 func (a *Agent) runCollect() {
 	if !a.collecting.CompareAndSwap(false, true) {
 		a.logger.Info("Previous collection still running, skipping")
@@ -125,6 +155,7 @@ func (a *Agent) runCollect() {
 	}()
 }
 
+// runReport entrypoint to start send metrics to the server.
 func (a *Agent) runReport(ctx context.Context, rateLimit int) {
 	a.mu.RLock()
 	metrics := make([]models.Metrics, len(a.collectedMetrics))
@@ -167,23 +198,4 @@ func (a *Agent) runReport(ctx context.Context, rateLimit int) {
 	}()
 	workerWg.Wait()
 	close(sendOutCh)
-}
-
-func (a *Agent) RunCtx(ctx context.Context, rateLimit int) {
-	defer a.pollTicker.Stop()
-	defer a.reportTicker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			a.logger.Info("Stopping agent...")
-			return
-		case <-a.pollTicker.C:
-			a.logger.Debug("Poll tick")
-			a.runCollect()
-		case <-a.reportTicker.C:
-			a.logger.Debug("Report tick")
-			a.runReport(ctx, rateLimit)
-		}
-	}
 }

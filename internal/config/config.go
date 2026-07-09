@@ -19,6 +19,7 @@ const (
 	defaultAuditURL        = ""
 )
 
+// Config holds server configuration populated from environment variables and command-line flags.
 type Config struct {
 	Addr            string `env:"ADDRESS"        `
 	StoreInterval   int    `env:"STORE_INTERVAL"`
@@ -42,6 +43,7 @@ func parseAddr(value string) (string, error) {
 	return fmt.Sprintf("%s:%s", host, port), nil
 }
 
+// GetConfig builds server Config from environment variables, falling back to command-line flags.
 func GetConfig() (*Config, error) {
 	var config Config
 	if err := env.Parse(&config); err != nil {

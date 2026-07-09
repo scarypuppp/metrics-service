@@ -28,6 +28,7 @@ func sendEvent(p *audit.Publisher, rt time.Time, ms []models.Metrics, addr strin
 	p.Publish(event)
 }
 
+// RetrieveMetricsHandler returns a GET handler rendering all metrics as an HTML page.
 func RetrieveMetricsHandler(metricService service.MetricService) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		// Обработка запроса
@@ -57,6 +58,7 @@ func RetrieveMetricsHandler(metricService service.MetricService) http.HandlerFun
 	}
 }
 
+// GetMetricByURLHandler returns a GET handler serving a single metric value from URL path parameters.
 func GetMetricByURLHandler(metricService service.MetricService) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		//Обработка запроса
@@ -90,6 +92,7 @@ func GetMetricByURLHandler(metricService service.MetricService) http.HandlerFunc
 	}
 }
 
+// GetMetricHandler returns a POST handler serving a single metric as JSON for a JSON request body.
 func GetMetricHandler(metricService service.MetricService) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		var metric models.Metrics
@@ -126,6 +129,7 @@ func GetMetricHandler(metricService service.MetricService) http.HandlerFunc {
 	}
 }
 
+// UpdateMetricByURLHandler returns a POST handler upserting a metric from URL path parameters and publishing an audit event.
 func UpdateMetricByURLHandler(metricService service.MetricService, publisher *audit.Publisher) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		requestIP, ok := req.Context().Value(middlewares.RequestIPKey).(string)
@@ -175,6 +179,7 @@ func UpdateMetricByURLHandler(metricService service.MetricService, publisher *au
 	}
 }
 
+// UpdateMetricHandler returns a POST handler upserting a metric from a JSON body and publishing an audit event.
 func UpdateMetricHandler(metricService service.MetricService, publisher *audit.Publisher) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		requestIP, ok := req.Context().Value(middlewares.RequestIPKey).(string)
@@ -221,6 +226,7 @@ func UpdateMetricHandler(metricService service.MetricService, publisher *audit.P
 	}
 }
 
+// UpdateMetricsHandler returns a POST handler upserting a batch of metrics from a JSON array body.
 func UpdateMetricsHandler(metricService service.MetricService, publisher *audit.Publisher) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		requestIP, ok := req.Context().Value(middlewares.RequestIPKey).(string)

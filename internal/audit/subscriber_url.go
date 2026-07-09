@@ -12,12 +12,14 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
+// URLSubscriber sends audit events as JSON to a remote HTTP endpoint.
 type URLSubscriber struct {
 	client *resty.Client
 	done   chan struct{}
 	cancel context.CancelFunc
 }
 
+// NewURLSubscriber subscribes to the publisher and starts posting incoming events to the given URL.
 func NewURLSubscriber(ctx context.Context, p *Publisher, id string, url string) (*URLSubscriber, error) {
 	client := resty.NewWithClient(&http.Client{
 		Timeout: 30 * time.Second,
@@ -71,11 +73,13 @@ func (s *URLSubscriber) send(ctx context.Context, event Event) error {
 	return nil
 }
 
+// Stop cancels event processing and waits for the worker to finish.
 func (s *URLSubscriber) Stop() {
 	s.cancel()
 	<-s.done
 }
 
+// Wait blocks until the subscriber worker finishes.
 func (s *URLSubscriber) Wait() {
 	<-s.done
 }

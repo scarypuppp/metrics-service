@@ -7,12 +7,14 @@ import (
 	"os"
 )
 
+// FileSubscriber writes audit events to a file as JSON lines.
 type FileSubscriber struct {
 	file   *os.File
 	done   chan struct{}
 	cancel context.CancelFunc
 }
 
+// NewFileSubscriber subscribes to the publisher and starts writing incoming events to the given file.
 func NewFileSubscriber(ctx context.Context, p *Publisher, id string, path string) (*FileSubscriber, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
@@ -54,11 +56,13 @@ func (s *FileSubscriber) run(ctx context.Context, ch <-chan Event) {
 	}
 }
 
+// Stop cancels event processing and waits for the worker to finish.
 func (s *FileSubscriber) Stop() {
 	s.cancel()
 	<-s.done
 }
 
+// Wait blocks until the subscriber worker finishes.
 func (s *FileSubscriber) Wait() {
 	<-s.done
 }

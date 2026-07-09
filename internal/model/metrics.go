@@ -6,14 +6,19 @@ import (
 	"strconv"
 )
 
+// Supported metric types.
 const (
 	Counter = "counter"
 	Gauge   = "gauge"
 )
 
+// ErrWrongMetricType is returned when a metric type is neither counter nor gauge.
 var ErrWrongMetricType = errors.New("unknown metric type")
+
+// ErrInvalidName is returned when a metric name is empty.
 var ErrInvalidName = errors.New("invalid name provided")
 
+// NewMetric builds a Metrics entity from a name, type and string value, validating and parsing the value.
 func NewMetric(name, mType, stringValue string) (*Metrics, error) {
 	if name == "" {
 		return nil, ErrInvalidName
@@ -47,6 +52,7 @@ func NewMetric(name, mType, stringValue string) (*Metrics, error) {
 	}
 }
 
+// Metrics represents a single metric: Delta is used for counters, Value for gauges.
 type Metrics struct {
 	ID    string   `json:"id" db:"id"`
 	MType string   `json:"type" db:"mtype"`
@@ -55,6 +61,7 @@ type Metrics struct {
 	Hash  string   `json:"hash,omitempty" db:"hash"`
 }
 
+// StringValue returns the metric value formatted as a string according to its type.
 func (m *Metrics) StringValue() string {
 	switch m.MType {
 	case Gauge:

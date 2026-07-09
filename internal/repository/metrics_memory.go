@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// MemMetricsStorage is an in-memory MetricsStorage with optional file persistence.
 type MemMetricsStorage struct {
 	Metrics map[string]models.Metrics
 
@@ -21,8 +22,10 @@ type MemMetricsStorage struct {
 	mu sync.RWMutex
 }
 
+// Option configures a MemMetricsStorage during construction.
 type Option func(*MemMetricsStorage) error
 
+// WithFile enables file persistence: optional restore on start and periodic or synchronous saving.
 func WithFile(ctx context.Context, fileName string, storeIntervalSec int, restore bool) Option {
 	return func(s *MemMetricsStorage) error {
 		s.fileName = fileName
@@ -40,6 +43,7 @@ func WithFile(ctx context.Context, fileName string, storeIntervalSec int, restor
 	}
 }
 
+// NewMemMetricsStorage creates an in-memory storage and applies the given options.
 func NewMemMetricsStorage(opts ...Option) (*MemMetricsStorage, error) {
 	s := &MemMetricsStorage{Metrics: make(map[string]models.Metrics)}
 	for _, opt := range opts {
@@ -66,6 +70,7 @@ func (s *MemMetricsStorage) startPeriodicSave(ctx context.Context) {
 	}()
 }
 
+// BeginTx satisfies MetricsStorage; in-memory storage has no transactions, so it is a no-op.
 func (s *MemMetricsStorage) BeginTx(ctx context.Context) (context.Context, func(error) error, error) {
 	doneFn := func(err error) error {
 		return err
@@ -73,6 +78,7 @@ func (s *MemMetricsStorage) BeginTx(ctx context.Context) (context.Context, func(
 	return ctx, doneFn, nil
 }
 
+// GetAllMetrics returns all stored metrics.
 func (s *MemMetricsStorage) GetAllMetrics(ctx context.Context) ([]models.Metrics, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -84,6 +90,7 @@ func (s *MemMetricsStorage) GetAllMetrics(ctx context.Context) ([]models.Metrics
 	return metrics, nil
 }
 
+// GetMetricByName returns the metric with the given id, or nil if it does not exist.
 func (s *MemMetricsStorage) GetMetricByName(ctx context.Context, id string) (*models.Metrics, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -94,6 +101,7 @@ func (s *MemMetricsStorage) GetMetricByName(ctx context.Context, id string) (*mo
 	return nil, nil
 }
 
+// UpdateMetric stores the metric, saving to file synchronously when configured with a zero store interval.
 func (s *MemMetricsStorage) UpdateMetric(ctx context.Context, metric *models.Metrics) error {
 	if metric == nil {
 		return fmt.Errorf("nil metric received")

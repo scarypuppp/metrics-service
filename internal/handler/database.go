@@ -9,6 +9,7 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+// PingDatabaseHandler returns a handler checking database availability via ping.
 func PingDatabaseHandler(db *sqlx.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

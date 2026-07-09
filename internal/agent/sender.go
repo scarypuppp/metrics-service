@@ -12,11 +12,13 @@ import (
 	"github.com/scarypuppp/metrics-service/internal/utils/retry"
 )
 
+// Sender delivers metrics to the server over HTTP with gzip compression and optional HMAC signing.
 type Sender struct {
 	client *resty.Client
 	key    string
 }
 
+// NewSender configures the HTTP client for the given server URL and returns a Sender.
 func NewSender(client *resty.Client, baseURL string, key string) *Sender {
 	client.SetBaseURL(baseURL).
 		SetHeader("Content-Type", "application/json").
@@ -25,6 +27,7 @@ func NewSender(client *resty.Client, baseURL string, key string) *Sender {
 	return &Sender{client, key}
 }
 
+// SendMetric posts a single metric to the server as compressed JSON, retrying on network errors.
 func (s *Sender) SendMetric(metric models.Metrics) error {
 	return retry.Do(
 		func() error {

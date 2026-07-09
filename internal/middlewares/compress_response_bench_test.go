@@ -9,7 +9,6 @@ import (
 	"testing"
 )
 
-// полКБ повторяющегося текста — типичный сжимаемый ответ
 var benchPayload = bytes.Repeat([]byte("metric gauge value 42.5\n"), 20)
 
 func benchmarkCompress(b *testing.B, acceptGzip bool) {

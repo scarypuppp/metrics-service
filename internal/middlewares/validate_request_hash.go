@@ -27,6 +27,8 @@ func (rc *responseCapture) WriteHeader(statusCode int) {
 	rc.statusCode = statusCode
 }
 
+// ValidateRequestHash is a middleware that verifies the HashSHA256 header of requests
+// and signs response bodies with the same HMAC key.
 func ValidateRequestHash(key string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

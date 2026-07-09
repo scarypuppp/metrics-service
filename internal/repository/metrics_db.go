@@ -11,10 +11,12 @@ import (
 	"github.com/scarypuppp/metrics-service/internal/utils/retry"
 )
 
+// DBMetricsStorage is a PostgreSQL-backed MetricsStorage implementation.
 type DBMetricsStorage struct {
 	dbObj *sqlx.DB
 }
 
+// NewDBMetricsStorage creates a DBMetricsStorage on top of the given database connection.
 func NewDBMetricsStorage(dbObj *sqlx.DB) *DBMetricsStorage {
 	return &DBMetricsStorage{dbObj: dbObj}
 }
@@ -26,6 +28,7 @@ func (s *DBMetricsStorage) getExecutor(ctx context.Context) sqlx.ExtContext {
 	return s.dbObj
 }
 
+// BeginTx starts a database transaction and returns a context carrying it plus a commit/rollback callback.
 func (s *DBMetricsStorage) BeginTx(ctx context.Context) (context.Context, func(error) error, error) {
 	tx, err := s.dbObj.BeginTxx(ctx, nil)
 	if err != nil {
@@ -42,6 +45,7 @@ func (s *DBMetricsStorage) BeginTx(ctx context.Context) (context.Context, func(e
 	return txCtx, doneFn, nil
 }
 
+// GetAllMetrics returns all metrics from the database ordered by id, retrying on connection errors.
 func (s *DBMetricsStorage) GetAllMetrics(ctx context.Context) ([]models.Metrics, error) {
 	var metrics []models.Metrics
 	err := retry.Do(func() error {
@@ -52,6 +56,7 @@ func (s *DBMetricsStorage) GetAllMetrics(ctx context.Context) ([]models.Metrics,
 	return metrics, err
 }
 
+// GetMetricByName returns the metric with the given id, or nil if it does not exist.
 func (s *DBMetricsStorage) GetMetricByName(ctx context.Context, id string) (*models.Metrics, error) {
 	var m models.Metrics
 	err := retry.Do(func() error {
@@ -67,6 +72,7 @@ func (s *DBMetricsStorage) GetMetricByName(ctx context.Context, id string) (*mod
 	return &m, nil
 }
 
+// UpdateMetric inserts or updates the metric via an upsert, retrying on connection errors.
 func (s *DBMetricsStorage) UpdateMetric(ctx context.Context, metric *models.Metrics) error {
 	if metric == nil {
 		return fmt.Errorf("nil metric received")

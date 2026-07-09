@@ -9,8 +9,11 @@ import (
 
 type contextKey string
 
+// RequestIPKey is the context key under which GetRequestIP stores the client IP address.
 const RequestIPKey contextKey = "requestIP"
 
+// GetRequestIP is a middleware that resolves the client IP from headers or the remote address
+// and stores it in the request context under RequestIPKey.
 func GetRequestIP(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var result string

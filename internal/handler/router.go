@@ -9,6 +9,7 @@ import (
 	"github.com/scarypuppp/metrics-service/internal/service"
 )
 
+// GetAppRouter builds the application chi router with all middlewares and metric routes wired up.
 func GetAppRouter(
 	key string,
 	metricService service.MetricService,

@@ -15,7 +15,7 @@ const (
 	defaultRestore         = true
 	defaultDatabaseDsn     = ""
 	defaultKey             = ""
-	defaultAuditFile       = "audit.json"
+	defaultAuditFile       = ""
 	defaultAuditURL        = ""
 )
 

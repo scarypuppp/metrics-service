@@ -22,9 +22,9 @@ func BenchmarkServiceUpsertMetricGauge(b *testing.B) {
 	ms := newBenchService(b)
 	ctx := context.Background()
 	value := 42.5
-
+	var i int
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		metric := models.Metrics{
 			ID:    fmt.Sprintf("gauge%d", i%100),
 			MType: models.Gauge,
@@ -33,15 +33,16 @@ func BenchmarkServiceUpsertMetricGauge(b *testing.B) {
 		if _, err := ms.UpsertMetric(ctx, metric); err != nil {
 			b.Fatal(err)
 		}
+		i++
 	}
 }
 
 func BenchmarkServiceUpsertMetricCounter(b *testing.B) {
 	ms := newBenchService(b)
 	ctx := context.Background()
-
+	var i int
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		delta := int64(1)
 		metric := models.Metrics{
 			ID:    fmt.Sprintf("counter%d", i%100),
@@ -51,6 +52,7 @@ func BenchmarkServiceUpsertMetricCounter(b *testing.B) {
 		if _, err := ms.UpsertMetric(ctx, metric); err != nil {
 			b.Fatal(err)
 		}
+		i++
 	}
 }
 
@@ -70,7 +72,7 @@ func BenchmarkServiceUpsertMetricsBatch(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if err := ms.UpsertMetrics(ctx, batch); err != nil {
 			b.Fatal(err)
 		}
@@ -93,7 +95,7 @@ func BenchmarkServiceGetAllMetrics(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if _, err := ms.GetAllMetrics(ctx); err != nil {
 			b.Fatal(err)
 		}

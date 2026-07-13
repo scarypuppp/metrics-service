@@ -5,17 +5,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
+
+	"go.uber.org/zap"
 )
 
 // FileSubscriber writes audit events to a file as JSON lines.
 type FileSubscriber struct {
 	file   *os.File
+	logger *zap.Logger
+	mu     sync.Mutex
 	done   chan struct{}
 	cancel context.CancelFunc
 }
 
 // NewFileSubscriber subscribes to the publisher and starts writing incoming events to the given file.
-func NewFileSubscriber(ctx context.Context, p *Publisher, id string, path string) (*FileSubscriber, error) {
+func NewFileSubscriber(ctx context.Context, p *Publisher, logger *zap.Logger, id string, path string) (*FileSubscriber, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("audit: open file %s: %w", path, err)
@@ -23,6 +28,7 @@ func NewFileSubscriber(ctx context.Context, p *Publisher, id string, path string
 	ctx, cancel := context.WithCancel(ctx)
 	s := &FileSubscriber{
 		file:   f,
+		logger: logger,
 		done:   make(chan struct{}),
 		cancel: cancel,
 	}
@@ -43,12 +49,15 @@ func (s *FileSubscriber) run(ctx context.Context, ch <-chan Event) {
 	for {
 		select {
 		case event, ok := <-ch:
+
 			if !ok {
 				return
 			}
+			s.mu.Lock()
 			if err := enc.Encode(event); err != nil {
-				fmt.Fprintf(os.Stderr, "audit: write file error %v\n", err)
+				s.logger.Error("audit: write file error", zap.Error(err))
 			}
+			s.mu.Unlock()
 		case <-ctx.Done():
 			return
 		}

@@ -132,10 +132,7 @@ func GetMetricHandler(metricService service.MetricService) http.HandlerFunc {
 // UpdateMetricByURLHandler returns a POST handler upserting a metric from URL path parameters and publishing an audit event.
 func UpdateMetricByURLHandler(metricService service.MetricService, publisher *audit.Publisher) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		requestIP, ok := req.Context().Value(middlewares.RequestIPKey).(string)
-		if !ok {
-			requestIP = "unknown"
-		}
+		requestIP := middlewares.GetCtxRequestIP(req.Context())
 		metricType := chi.URLParam(req, "metricType")
 		metricName := chi.URLParam(req, "metricName")
 		if metricName == "" || metricType == "" {
@@ -182,10 +179,7 @@ func UpdateMetricByURLHandler(metricService service.MetricService, publisher *au
 // UpdateMetricHandler returns a POST handler upserting a metric from a JSON body and publishing an audit event.
 func UpdateMetricHandler(metricService service.MetricService, publisher *audit.Publisher) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		requestIP, ok := req.Context().Value(middlewares.RequestIPKey).(string)
-		if !ok {
-			requestIP = "unknown"
-		}
+		requestIP := middlewares.GetCtxRequestIP(req.Context())
 		var metric models.Metrics
 		var buffer bytes.Buffer
 		_, err := buffer.ReadFrom(req.Body)
@@ -229,10 +223,7 @@ func UpdateMetricHandler(metricService service.MetricService, publisher *audit.P
 // UpdateMetricsHandler returns a POST handler upserting a batch of metrics from a JSON array body.
 func UpdateMetricsHandler(metricService service.MetricService, publisher *audit.Publisher) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		requestIP, ok := req.Context().Value(middlewares.RequestIPKey).(string)
-		if !ok {
-			requestIP = "unknown"
-		}
+		requestIP := middlewares.GetCtxRequestIP(req.Context())
 		var metrics []models.Metrics
 		var buffer bytes.Buffer
 

@@ -32,9 +32,9 @@ func BenchmarkMemStorageUpdateMetric(b *testing.B) {
 	storage := newBenchStorage(b, 0)
 	ctx := context.Background()
 	value := 42.5
-
+	var i int
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		metric := models.Metrics{
 			ID:    fmt.Sprintf("gauge%d", i%100),
 			MType: models.Gauge,
@@ -43,18 +43,20 @@ func BenchmarkMemStorageUpdateMetric(b *testing.B) {
 		if err := storage.UpdateMetric(ctx, &metric); err != nil {
 			b.Fatal(err)
 		}
+		i++
 	}
 }
 
 func BenchmarkMemStorageGetMetricByName(b *testing.B) {
 	storage := newBenchStorage(b, 100)
 	ctx := context.Background()
-
+	var i int
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if _, err := storage.GetMetricByName(ctx, fmt.Sprintf("gauge%d", i%100)); err != nil {
 			b.Fatal(err)
 		}
+		i++
 	}
 }
 
@@ -63,7 +65,7 @@ func BenchmarkMemStorageGetAllMetrics(b *testing.B) {
 	ctx := context.Background()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if _, err := storage.GetAllMetrics(ctx); err != nil {
 			b.Fatal(err)
 		}

@@ -18,12 +18,14 @@ func benchmarkCompress(b *testing.B, acceptGzip bool) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
+		b.StopTimer()
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		if acceptGzip {
 			req.Header.Set("Accept-Encoding", "gzip")
 		}
 		rec := httptest.NewRecorder()
+		b.StartTimer()
 		handler.ServeHTTP(rec, req)
 	}
 }
@@ -49,10 +51,12 @@ func BenchmarkDecompressRequest(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
+		b.StopTimer()
 		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 		req.Header.Set("Content-Encoding", "gzip")
 		rec := httptest.NewRecorder()
+		b.StartTimer()
 		handler.ServeHTTP(rec, req)
 	}
 }

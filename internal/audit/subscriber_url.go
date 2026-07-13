@@ -6,21 +6,22 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/go-resty/resty/v2"
+	"go.uber.org/zap"
 )
 
 // URLSubscriber sends audit events as JSON to a remote HTTP endpoint.
 type URLSubscriber struct {
 	client *resty.Client
+	logger *zap.Logger
 	done   chan struct{}
 	cancel context.CancelFunc
 }
 
 // NewURLSubscriber subscribes to the publisher and starts posting incoming events to the given URL.
-func NewURLSubscriber(ctx context.Context, p *Publisher, id string, url string) (*URLSubscriber, error) {
+func NewURLSubscriber(ctx context.Context, p *Publisher, logger *zap.Logger, id string, url string) (*URLSubscriber, error) {
 	client := resty.NewWithClient(&http.Client{
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
@@ -31,10 +32,21 @@ func NewURLSubscriber(ctx context.Context, p *Publisher, id string, url string) 
 	})
 	client.SetBaseURL(url).
 		SetHeader("Content-Type", "application/json").
-		SetContentLength(true)
+		SetContentLength(true).
+		SetRetryCount(3).
+		SetRetryWaitTime(1 * time.Second).
+		SetRetryMaxWaitTime(5 * time.Second)
+
+	client.AddRetryCondition(
+		func(r *resty.Response, err error) bool {
+			return err != nil || r.StatusCode() >= 500
+		},
+	)
+
 	ctx, cancel := context.WithCancel(ctx)
 	s := &URLSubscriber{
 		client: client,
+		logger: logger,
 		cancel: cancel,
 		done:   make(chan struct{}),
 	}
@@ -52,7 +64,7 @@ func (s *URLSubscriber) run(ctx context.Context, ch <-chan Event) {
 			if errors.Is(err, context.Canceled) {
 				return
 			}
-			fmt.Fprintf(os.Stderr, "audit: url send error: %v\n", err)
+			s.logger.Error("audit: url send error", zap.Error(err))
 		}
 	}
 }

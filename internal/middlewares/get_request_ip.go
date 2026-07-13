@@ -9,11 +9,20 @@ import (
 
 type contextKey string
 
-// RequestIPKey is the context key under which GetRequestIP stores the client IP address.
-const RequestIPKey contextKey = "requestIP"
+// requestIPKey is the context key under which GetRequestIP stores the client IP address.
+const requestIPKey contextKey = "requestIP"
+
+// GetCtxRequestIP is a getter function that extracts user ip address from context.
+func GetCtxRequestIP(ctx context.Context) string {
+	value, ok := ctx.Value(requestIPKey).(string)
+	if !ok {
+		value = "unknown"
+	}
+	return value
+}
 
 // GetRequestIP is a middleware that resolves the client IP from headers or the remote address
-// and stores it in the request context under RequestIPKey.
+// and stores it in the request context under requestIPKey.
 func GetRequestIP(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var result string
@@ -33,7 +42,7 @@ func GetRequestIP(handler http.Handler) http.Handler {
 			}
 		}
 
-		ctx := context.WithValue(r.Context(), RequestIPKey, result)
+		ctx := context.WithValue(r.Context(), requestIPKey, result)
 		handler.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

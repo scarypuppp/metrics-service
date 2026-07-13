@@ -94,7 +94,7 @@ func main() {
 	var subscribers []audit.Subscriber // interface { Wait(); Stop() }
 
 	if serverConfig.AuditFile != "" {
-		fileSub, err := audit.NewFileSubscriber(subsCtx, publisher, "file", serverConfig.AuditFile)
+		fileSub, err := audit.NewFileSubscriber(subsCtx, publisher, logger, "file", serverConfig.AuditFile)
 		if err != nil {
 			logger.Error("error starting file audit subscriber", zap.Error(err))
 		} else {
@@ -102,7 +102,7 @@ func main() {
 		}
 	}
 	if serverConfig.AuditURL != "" {
-		urlSub, err := audit.NewURLSubscriber(subsCtx, publisher, "url", serverConfig.AuditURL)
+		urlSub, err := audit.NewURLSubscriber(subsCtx, publisher, logger, "url", serverConfig.AuditURL)
 		if err != nil {
 			logger.Error("error starting url audit subscriber", zap.Error(err))
 		} else {

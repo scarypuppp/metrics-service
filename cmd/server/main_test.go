@@ -7,18 +7,19 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/scarypuppp/metrics-service/internal/handler"
-	"github.com/scarypuppp/metrics-service/internal/model"
+	"github.com/scarypuppp/metrics-service/internal/audit"
+	handlers "github.com/scarypuppp/metrics-service/internal/handler"
+	models "github.com/scarypuppp/metrics-service/internal/model"
 	"github.com/scarypuppp/metrics-service/internal/repository"
 	"github.com/scarypuppp/metrics-service/internal/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func newRouter(metricService service.MetricService) http.Handler {
+func newRouter(metricService service.MetricService, publisher *audit.Publisher) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
-	r.Post("/update/{metricType}/{metricName}/{metricValue}", handlers.UpdateMetricByURLHandler(metricService))
+	r.Post("/update/{metricType}/{metricName}/{metricValue}", handlers.UpdateMetricByURLHandler(metricService, publisher))
 	return r
 }
 
@@ -68,11 +69,12 @@ func TestCreateMetricHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			storage := repository.MemMetricsStorage{Metrics: make(map[string]models.Metrics)}
 			metricService := service.MetricService{Storage: &storage}
+			publisher := audit.NewPublisher()
 
 			req := httptest.NewRequest(tt.method, tt.url, nil)
 			rr := httptest.NewRecorder()
 
-			newRouter(metricService).ServeHTTP(rr, req)
+			newRouter(metricService, publisher).ServeHTTP(rr, req)
 
 			require.Equal(t, tt.expectedStatus, rr.Code)
 			if tt.expectedBody != "" {
@@ -85,7 +87,8 @@ func TestCreateMetricHandler(t *testing.T) {
 func TestCreateMetricHandler_GaugeOverwritesOnUpdate(t *testing.T) {
 	storage := repository.MemMetricsStorage{Metrics: make(map[string]models.Metrics)}
 	metricService := service.MetricService{Storage: &storage}
-	r := newRouter(metricService)
+	publisher := audit.NewPublisher()
+	r := newRouter(metricService, publisher)
 
 	req := httptest.NewRequest(http.MethodPost, "/update/gauge/temperature/10.5", nil)
 	rr := httptest.NewRecorder()
@@ -103,7 +106,8 @@ func TestCreateMetricHandler_GaugeOverwritesOnUpdate(t *testing.T) {
 func TestCreateMetricHandler_CounterAccumulatesOnUpdate(t *testing.T) {
 	storage := repository.MemMetricsStorage{Metrics: make(map[string]models.Metrics)}
 	metricService := service.MetricService{Storage: &storage}
-	r := newRouter(metricService)
+	publisher := audit.NewPublisher()
+	r := newRouter(metricService, publisher)
 
 	req := httptest.NewRequest(http.MethodPost, "/update/counter/hits/10", nil)
 	rr := httptest.NewRecorder()
@@ -121,7 +125,8 @@ func TestCreateMetricHandler_CounterAccumulatesOnUpdate(t *testing.T) {
 func TestCreateMetricHandler_MetricTypeConflictReturnsError(t *testing.T) {
 	storage := repository.MemMetricsStorage{Metrics: make(map[string]models.Metrics)}
 	metricService := service.MetricService{Storage: &storage}
-	r := newRouter(metricService)
+	publisher := audit.NewPublisher()
+	r := newRouter(metricService, publisher)
 
 	req := httptest.NewRequest(http.MethodPost, "/update/gauge/temperature/36.6", nil)
 	rr := httptest.NewRecorder()

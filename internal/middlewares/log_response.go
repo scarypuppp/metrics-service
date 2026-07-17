@@ -28,6 +28,7 @@ func (response *loggingResponseWriter) WriteHeader(statusCode int) {
 	response.responseData.status = statusCode
 }
 
+// LogResponse is a middleware that logs the status code and body size of each response.
 func LogResponse(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		responseData := &responseData{}

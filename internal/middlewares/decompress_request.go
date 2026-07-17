@@ -4,8 +4,18 @@ import (
 	"compress/gzip"
 	"net/http"
 	"strings"
+	"sync"
 )
 
+// gzipReaderPool переиспользует gzip.Reader между запросами:
+// буферы декомпрессора аллоцируются один раз, а не на каждое сжатое тело.
+var gzipReaderPool = sync.Pool{
+	New: func() any {
+		return new(gzip.Reader)
+	},
+}
+
+// DecompressRequest is a middleware that transparently decompresses gzip-encoded request bodies.
 func DecompressRequest(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
@@ -13,11 +23,16 @@ func DecompressRequest(handler http.Handler) http.Handler {
 			return
 		}
 
-		gz, err := gzip.NewReader(r.Body)
-		if err != nil {
+		gz := gzipReaderPool.Get().(*gzip.Reader)
+		if err := gz.Reset(r.Body); err != nil {
+			gzipReaderPool.Put(gz)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
-		defer gz.Close()
+		defer func() {
+			gz.Close()
+			gzipReaderPool.Put(gz)
+		}()
 		r.Body = gz
 		handler.ServeHTTP(w, r)
 	})

@@ -11,12 +11,15 @@ import (
 	models "github.com/scarypuppp/metrics-service/internal/model"
 )
 
+// Collector gathers runtime and system metrics for the agent.
 type Collector struct{}
 
+// NewCollector creates a Collector.
 func NewCollector() *Collector {
 	return &Collector{}
 }
 
+// CollectMetrics gathers Go runtime memory stats plus PollCount and RandomValue metrics.
 func (c *Collector) CollectMetrics(pollCountValue int64) []models.Metrics {
 	runtimeMetrics := getMemStats()
 	var returnMetrics []models.Metrics
@@ -50,6 +53,7 @@ func (c *Collector) CollectMetrics(pollCountValue int64) []models.Metrics {
 	return returnMetrics
 }
 
+// CollectCustomMetrics gathers system metrics: total/free memory and per-core CPU utilization.
 func (c *Collector) CollectCustomMetrics() ([]models.Metrics, error) {
 	var returnMetrics []models.Metrics
 	customStats, err := getCustomStats()

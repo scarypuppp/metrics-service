@@ -9,20 +9,24 @@ import (
 	"github.com/scarypuppp/metrics-service/internal/repository"
 )
 
+// Errors returned by MetricService operations.
 var (
 	ErrInvalidMetricType  = errors.New("invalid metric type provided")
 	ErrMetricTypeMismatch = errors.New("metric with such name already exists with different type")
 	ErrMetricNameNotExist = errors.New("metric with such name does not exist")
 )
 
+// MetricService implements business logic for reading and updating metrics on top of a MetricsStorage.
 type MetricService struct {
 	Storage repository.MetricsStorage
 }
 
+// NewMetricService creates a MetricService backed by the given storage.
 func NewMetricService(storage repository.MetricsStorage) *MetricService {
 	return &MetricService{Storage: storage}
 }
 
+// GetAllMetrics returns all stored metrics sorted by id.
 func (ms *MetricService) GetAllMetrics(ctx context.Context) ([]models.Metrics, error) {
 	metrics, err := ms.Storage.GetAllMetrics(ctx)
 	if err != nil {
@@ -36,6 +40,7 @@ func (ms *MetricService) GetAllMetrics(ctx context.Context) ([]models.Metrics, e
 	return metrics, nil
 }
 
+// GetByName returns the metric with the given id or ErrMetricNameNotExist if it is missing.
 func (ms *MetricService) GetByName(ctx context.Context, id string) (*models.Metrics, error) {
 	metric, err := ms.Storage.GetMetricByName(ctx, id)
 	if err != nil {
@@ -47,6 +52,7 @@ func (ms *MetricService) GetByName(ctx context.Context, id string) (*models.Metr
 	return metric, nil
 }
 
+// UpsertMetric creates or updates a single metric in a transaction, accumulating counter deltas.
 func (ms *MetricService) UpsertMetric(ctx context.Context, metric models.Metrics) (*models.Metrics, error) {
 	txCtx, done, err := ms.Storage.BeginTx(ctx)
 	if err != nil {
@@ -59,6 +65,7 @@ func (ms *MetricService) UpsertMetric(ctx context.Context, metric models.Metrics
 	return &metric, nil
 }
 
+// UpsertMetrics creates or updates a batch of metrics in one transaction, merging duplicates by id.
 func (ms *MetricService) UpsertMetrics(ctx context.Context, metrics []models.Metrics) error {
 	merged := make(map[string]models.Metrics)
 	for _, m := range metrics {

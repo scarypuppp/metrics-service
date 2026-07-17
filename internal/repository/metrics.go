@@ -6,6 +6,7 @@ import (
 	models "github.com/scarypuppp/metrics-service/internal/model"
 )
 
+// MetricsStorage abstracts metrics persistence with read, upsert and transaction support.
 type MetricsStorage interface {
 	GetAllMetrics(ctx context.Context) ([]models.Metrics, error)
 	GetMetricByName(ctx context.Context, id string) (*models.Metrics, error)

@@ -16,6 +16,7 @@ const (
 	defaultRateLimit      = 1
 )
 
+// Config holds agent configuration populated from environment variables and command-line flags.
 type Config struct {
 	ServerAddr     string `env:"ADDRESS"        `
 	PoolInterval   int64  `env:"POLL_INTERVAL"  `
@@ -38,6 +39,7 @@ func parseAddr(value string) (string, error) {
 	return fmt.Sprintf("%s%s:%s", scheme, matches[2], matches[3]), nil
 }
 
+// GetConfig builds agent Config from environment variables, falling back to command-line flags.
 func GetConfig() (*Config, error) {
 	var config Config
 	if err := env.Parse(&config); err != nil {

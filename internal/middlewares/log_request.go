@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// LogRequest is a middleware that logs the URI, method and duration of each request.
 func LogRequest(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

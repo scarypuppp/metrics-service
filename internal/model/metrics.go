@@ -53,6 +53,7 @@ func NewMetric(name, mType, stringValue string) (*Metrics, error) {
 }
 
 // Metrics represents a single metric: Delta is used for counters, Value for gauges.
+// generate:reset
 type Metrics struct {
 	ID    string   `json:"id" db:"id"`
 	MType string   `json:"type" db:"mtype"`

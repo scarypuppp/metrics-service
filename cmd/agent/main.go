@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"log"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -38,9 +41,15 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	certificate, err := readCert(agentConfig.CryptoKey)
+	if err != nil {
+		logger.Fatal("error reading certificate", zap.Error(err))
+	}
+
 	newAgent := agent.NewAgent(
 		agent.NewCollector(),
-		agent.NewSender(client, agentConfig.ServerAddr, agentConfig.Key),
+		agent.NewSender(client, agentConfig.ServerAddr, agentConfig.Key, certificate),
 		*logger,
 		agentConfig.PoolInterval,
 		agentConfig.ReportInterval,
@@ -49,4 +58,20 @@ func main() {
 	log.Println("Agent started")
 	newAgent.RunCtx(ctx, agentConfig.RateLimit)
 	log.Println("Agent stopped")
+}
+
+func readCert(path string) (*x509.Certificate, error) {
+	certificateBytes, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	certificatePemBlock, _ := pem.Decode(certificateBytes)
+	if certificatePemBlock == nil {
+		return nil, err
+	}
+	certificate, err := x509.ParseCertificate(certificatePemBlock.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	return certificate, nil
 }

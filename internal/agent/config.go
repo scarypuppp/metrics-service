@@ -14,6 +14,7 @@ const (
 	defaultReportInterval = int64(10)
 	defaultKey            = ""
 	defaultRateLimit      = 1
+	defaultCryptoKey      = ""
 )
 
 // Config holds agent configuration populated from environment variables and command-line flags.
@@ -23,6 +24,7 @@ type Config struct {
 	ReportInterval int64  `env:"REPORT_INTERVAL"`
 	Key            string `env:"KEY"`
 	RateLimit      int    `env:"RATE_LIMIT"`
+	CryptoKey      string `env:"CRYPTO_KEY"`
 }
 
 var addrRegexp = regexp.MustCompile(`^(https?://)?(localhost|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d{2,5})$`)
@@ -51,6 +53,7 @@ func GetConfig() (*Config, error) {
 	reportIntervalFlag := flag.Int64("r", defaultReportInterval, "report interval in seconds")
 	keyFlag := flag.String("k", defaultKey, "key to calculate data hash")
 	ratelimitKey := flag.Int("l", defaultRateLimit, "rate limit to send data")
+	cryptoKeyFlag := flag.String("crypto-key", defaultCryptoKey, "public key path")
 	flag.Parse()
 
 	if config.ServerAddr == "" {
@@ -67,6 +70,9 @@ func GetConfig() (*Config, error) {
 	}
 	if config.RateLimit == 0 {
 		config.RateLimit = *ratelimitKey
+	}
+	if config.CryptoKey == "" {
+		config.CryptoKey = *cryptoKeyFlag
 	}
 	addr, err := parseAddr(config.ServerAddr)
 	if err != nil {

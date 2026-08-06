@@ -17,6 +17,7 @@ const (
 	defaultKey             = ""
 	defaultAuditFile       = ""
 	defaultAuditURL        = ""
+	defaultCryptoKey       = ""
 )
 
 // Config holds server configuration populated from environment variables and command-line flags.
@@ -29,6 +30,7 @@ type Config struct {
 	Key             string `env:"KEY"`
 	AuditFile       string `env:"AUDIT_FILE"`
 	AuditURL        string `env:"AUDIT_URL"`
+	CryptoKey       string `env:"CRYPTO_KEY"`
 }
 
 var addrRegexp = regexp.MustCompile(`^(https?://)?(localhost|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})?:(\d{2,5})$`)
@@ -58,6 +60,7 @@ func GetConfig() (*Config, error) {
 	keyFlag := flag.String("k", defaultKey, "key to calculate data hash")
 	auditFileFlag := flag.String("audit-file", defaultAuditFile, "audit file path")
 	auditURLFlag := flag.String("audit-url", defaultAuditURL, "audit url path")
+	cryptoKeyFlag := flag.String("crypto-key", defaultCryptoKey, "private key path")
 	flag.Parse()
 
 	if config.Addr == "" {
@@ -83,6 +86,9 @@ func GetConfig() (*Config, error) {
 	}
 	if config.AuditURL == "" {
 		config.AuditURL = *auditURLFlag
+	}
+	if config.CryptoKey == "" {
+		config.CryptoKey = *cryptoKeyFlag
 	}
 	addr, err := parseAddr(config.Addr)
 	if err != nil {

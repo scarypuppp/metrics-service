@@ -27,3 +27,6 @@ vendor/
 # Enviroment
 .env.agent
 .env.server
+
+# Secrets
+*.pem

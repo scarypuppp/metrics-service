@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"log"
 	"net/http"
@@ -104,8 +107,17 @@ func main() {
 		}
 	}
 
+	var privateKey *rsa.PrivateKey
+	if serverConfig.CryptoKey != "" {
+		privateKey, err = readPrivateKey(serverConfig.CryptoKey)
+		if err != nil {
+			logger.Fatal("error reading private key", zap.Error(err))
+		}
+	}
+
 	router := handlers.GetAppRouter(
 		serverConfig.Key,
+		privateKey,
 		*metricService,
 		publisher,
 		dbObj,
@@ -191,4 +203,20 @@ func printVersion() {
 	fmt.Printf("Build version: %s\n", bv)
 	fmt.Printf("Build date: %s\n", bd)
 	fmt.Printf("Build commit: %s\n", bc)
+}
+
+func readPrivateKey(path string) (*rsa.PrivateKey, error) {
+	privateKeyBytes, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	privateKeyPemBlock, _ := pem.Decode(privateKeyBytes)
+	if privateKeyPemBlock == nil {
+		return nil, err
+	}
+	privateKey, err := x509.ParsePKCS1PrivateKey(privateKeyPemBlock.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	return privateKey, nil
 }

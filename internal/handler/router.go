@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"crypto/rsa"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jmoiron/sqlx"
@@ -12,6 +14,7 @@ import (
 // GetAppRouter builds the application chi router with all middlewares and metric routes wired up.
 func GetAppRouter(
 	key string,
+	privateKey *rsa.PrivateKey,
 	metricService service.MetricService,
 	publisher *audit.Publisher,
 	db *sqlx.DB,
@@ -21,6 +24,9 @@ func GetAppRouter(
 	r.Use(middlewares.LogResponse)
 	r.Use(middlewares.CompressResponse)
 	r.Use(middlewares.DecompressRequest)
+	if privateKey != nil {
+		r.Use(middlewares.DecryptRequest(privateKey))
+	}
 	if key != "" {
 		r.Use(middlewares.ValidateRequestHash(key))
 	}

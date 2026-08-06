@@ -2,19 +2,19 @@ package pool
 
 import "sync"
 
-// Resetable is a constraint for types that have a Reset() method.
-type Resetable interface {
+// Resetter is a constraint for types that have a Reset() method.
+type Resetter interface {
 	Reset()
 }
 
 // Pool is a generic wrapper around sync.Pool for objects of type T.
-type Pool[T Resetable] struct {
+type Pool[T Resetter] struct {
 	pool sync.Pool
 }
 
 // New creates a new Pool. The newFn function is called to create
 // a new object when the pool is empty.
-func New[T Resetable](newFn func() T) *Pool[T] {
+func New[T Resetter](newFn func() T) *Pool[T] {
 	return &Pool[T]{
 		pool: sync.Pool{
 			New: func() any {

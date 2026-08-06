@@ -49,9 +49,8 @@ func RetrieveMetricsHandler(metricService service.MetricService) http.HandlerFun
 			`<pre style="word-wrap: break-word; white-space: pre-wrap;">`)
 
 		for _, m := range metrics {
-			sv, err := m.StringValue()
-			if err != nil {
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			sv, ok := stringValueOr500(w, m)
+			if !ok {
 				return
 			}
 			fmt.Fprintf(&sb, "# HELP %s\n# TYPE %s %s\n%s %s\n", m.ID, m.ID, m.MType, m.ID, sv)
@@ -92,9 +91,8 @@ func GetMetricByURLHandler(metricService service.MetricService) http.HandlerFunc
 		}
 
 		// Формирование ответа
-		sv, err := metric.StringValue()
-		if err != nil {
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		sv, ok := stringValueOr500(w, *metric)
+		if !ok {
 			return
 		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -180,9 +178,8 @@ func UpdateMetricByURLHandler(metricService service.MetricService, publisher *au
 
 		sendEvent(publisher, time.Now(), []models.Metrics{*metric}, requestIP)
 
-		sv, err := metric.StringValue()
-		if err != nil {
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		sv, ok := stringValueOr500(w, *metric)
+		if !ok {
 			return
 		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -269,4 +266,13 @@ func UpdateMetricsHandler(metricService service.MetricService, publisher *audit.
 
 		w.WriteHeader(http.StatusOK)
 	}
+}
+
+func stringValueOr500(w http.ResponseWriter, m models.Metrics) (string, bool) {
+	sv, err := m.StringValue()
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return "", false
+	}
+	return sv, true
 }

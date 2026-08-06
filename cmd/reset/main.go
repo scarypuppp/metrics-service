@@ -174,7 +174,12 @@ func writePointerReset(sb *strings.Builder, f string, t *ast.StarExpr) {
 	}
 	// Named type: call Reset() if the type provides it.
 	fmt.Fprintf(sb,
-		"\tif resetter, ok := any(%s).(interface{ Reset() }); ok && %s != nil {\n\t\tresetter.Reset()\n\t}\n",
+		"\tif %s != nil {\n"+
+			"\t\tif resetter, ok := any(%s).(interface{ Reset() }); ok {\n"+
+			"\t\t\tresetter.Reset()\n"+
+			"\t\t}\n"+
+			"\t}"+
+			"\n",
 		f, f)
 }
 

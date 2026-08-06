@@ -23,20 +23,14 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
-func runMigrations(dsn string) error {
-	m, err := migrate.New("file://migrations", dsn)
-	if err != nil {
-		return fmt.Errorf("create migrate: %w", err)
-	}
-	defer m.Close()
-
-	if err = m.Up(); err != nil && err != migrate.ErrNoChange {
-		return fmt.Errorf("run migrations: %w", err)
-	}
-	return nil
-}
+var (
+	buildVersion string
+	buildDate    string
+	buildCommit  string
+)
 
 func main() {
+	printVersion()
 	// Получение конфигурации
 	serverConfig, err := config.GetConfig()
 	if err != nil {
@@ -168,4 +162,33 @@ func main() {
 	}
 
 	logger.Info("Server stopped gracefully")
+}
+
+func runMigrations(dsn string) error {
+	m, err := migrate.New("file://migrations", dsn)
+	if err != nil {
+		return fmt.Errorf("create migrate: %w", err)
+	}
+	defer m.Close()
+
+	if err = m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("run migrations: %w", err)
+	}
+	return nil
+}
+
+func printVersion() {
+	bv, bd, bc := "N/A", "N/A", "N/A"
+	if buildVersion != "" {
+		bv = buildVersion
+	}
+	if buildDate != "" {
+		bd = buildDate
+	}
+	if buildCommit != "" {
+		bc = buildCommit
+	}
+	fmt.Printf("Build version: %s\n", bv)
+	fmt.Printf("Build date: %s\n", bd)
+	fmt.Printf("Build commit: %s\n", bc)
 }

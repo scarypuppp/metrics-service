@@ -47,8 +47,13 @@ func RetrieveMetricsHandler(metricService service.MetricService) http.HandlerFun
 		sb.Grow(128 + 80*len(metrics))
 		sb.WriteString(`<html><head><meta name="color-scheme" content="light dark"></head><body>` +
 			`<pre style="word-wrap: break-word; white-space: pre-wrap;">`)
+
 		for _, m := range metrics {
-			fmt.Fprintf(&sb, "# HELP %s\n# TYPE %s %s\n%s %s\n", m.ID, m.ID, m.MType, m.ID, m.StringValue())
+			sv, ok := stringValueOr500(w, m)
+			if !ok {
+				return
+			}
+			fmt.Fprintf(&sb, "# HELP %s\n# TYPE %s %s\n%s %s\n", m.ID, m.ID, m.MType, m.ID, sv)
 		}
 		sb.WriteString(`</pre></body></html>`)
 
@@ -86,9 +91,13 @@ func GetMetricByURLHandler(metricService service.MetricService) http.HandlerFunc
 		}
 
 		// Формирование ответа
+		sv, ok := stringValueOr500(w, *metric)
+		if !ok {
+			return
+		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(metric.StringValue()))
+		w.Write([]byte(sv))
 	}
 }
 
@@ -169,10 +178,13 @@ func UpdateMetricByURLHandler(metricService service.MetricService, publisher *au
 
 		sendEvent(publisher, time.Now(), []models.Metrics{*metric}, requestIP)
 
-		// Формирование ответа
+		sv, ok := stringValueOr500(w, *metric)
+		if !ok {
+			return
+		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(metric.StringValue()))
+		w.Write([]byte(sv))
 	}
 }
 
@@ -254,4 +266,13 @@ func UpdateMetricsHandler(metricService service.MetricService, publisher *audit.
 
 		w.WriteHeader(http.StatusOK)
 	}
+}
+
+func stringValueOr500(w http.ResponseWriter, m models.Metrics) (string, bool) {
+	sv, err := m.StringValue()
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return "", false
+	}
+	return sv, true
 }

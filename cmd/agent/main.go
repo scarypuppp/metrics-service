@@ -14,9 +14,17 @@ import (
 )
 
 func main() {
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer logger.Sync()
+	zap.ReplaceGlobals(logger)
+
 	agentConfig, err := agent.GetConfig()
 	if err != nil {
-		panic(err)
+		logger.Fatal("read agent config failed", zap.Error(err))
 	}
 
 	client := resty.NewWithClient(&http.Client{
@@ -27,13 +35,6 @@ func main() {
 			IdleConnTimeout:     90 * time.Second,
 		},
 	})
-
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer logger.Sync()
-	zap.ReplaceGlobals(logger)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

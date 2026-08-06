@@ -53,6 +53,7 @@ func NewMetric(name, mType, stringValue string) (*Metrics, error) {
 }
 
 // Metrics represents a single metric: Delta is used for counters, Value for gauges.
+// generate:reset
 type Metrics struct {
 	ID    string   `json:"id" db:"id"`
 	MType string   `json:"type" db:"mtype"`
@@ -62,13 +63,13 @@ type Metrics struct {
 }
 
 // StringValue returns the metric value formatted as a string according to its type.
-func (m *Metrics) StringValue() string {
+func (m *Metrics) StringValue() (string, error) {
 	switch m.MType {
 	case Gauge:
-		return strconv.FormatFloat(*m.Value, 'f', -1, 64)
+		return strconv.FormatFloat(*m.Value, 'f', -1, 64), nil
 	case Counter:
-		return strconv.FormatInt(*m.Delta, 10)
+		return strconv.FormatInt(*m.Delta, 10), nil
 	default:
-		panic(ErrWrongMetricType)
+		return "", ErrWrongMetricType
 	}
 }

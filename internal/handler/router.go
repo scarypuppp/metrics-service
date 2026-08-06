@@ -23,10 +23,10 @@ func GetAppRouter(
 
 	r.Use(middlewares.LogResponse)
 	r.Use(middlewares.CompressResponse)
-	r.Use(middlewares.DecompressRequest)
 	if privateKey != nil {
 		r.Use(middlewares.DecryptRequest(privateKey))
 	}
+	r.Use(middlewares.DecompressRequest)
 	if key != "" {
 		r.Use(middlewares.ValidateRequestHash(key))
 	}

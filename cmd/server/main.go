@@ -55,16 +55,19 @@ func main() {
 	}
 	defer dbObj.Close()
 
+	// Контекст, отменяемый при получении сигнала завершения. Используется как для
+	// остановки HTTP-сервера, так и для триггера финального сохранения storage.
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	defer cancel()
+
 	// Инициализация репозитория метрик
 	var storage repository.MetricsStorage
-	storageContext, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
 
 	if serverConfig.DatabaseDSN == "" {
 		var opts []repository.Option
 		if serverConfig.FileStoragePath != "" {
 			opts = append(opts, repository.WithFile(
-				storageContext,
+				ctx,
 				serverConfig.FileStoragePath,
 				serverConfig.StoreInterval,
 				*serverConfig.Restore,
@@ -140,9 +143,8 @@ func main() {
 
 	logger.Info("Listening", zap.String("addr", serverConfig.Addr))
 	// Graceful shutdown
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	<-ctx.Done()
+	cancel()
 	logger.Info("Shutting down server...")
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -150,6 +152,15 @@ func main() {
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Error("Server forced to shutdown", zap.Error(err))
+	}
+
+	if memStorage, ok := storage.(*repository.MemMetricsStorage); ok {
+		select {
+		case <-memStorage.Done():
+			logger.Info("storage write to file")
+		case <-time.After(10 * time.Second):
+			logger.Warn("storage write timed out")
+		}
 	}
 
 	publisher.Close()

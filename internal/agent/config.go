@@ -56,25 +56,25 @@ func GetConfig() (*Config, error) {
 	configFileFlag := flag.String("c", "", "config file path")
 	flag.Parse()
 
-	if config.ServerAddr == "" {
+	if config.ServerAddr == "" && flagPassed("a") {
 		config.ServerAddr = *addrFlag
 	}
-	if config.PoolInterval == 0 {
+	if config.PoolInterval == 0 && flagPassed("p") {
 		config.PoolInterval = *poolIntervalFlag
 	}
-	if config.ReportInterval == 0 {
+	if config.ReportInterval == 0 && flagPassed("r") {
 		config.ReportInterval = *reportIntervalFlag
 	}
-	if config.Key == "" {
+	if config.Key == "" && flagPassed("k") {
 		config.Key = *keyFlag
 	}
-	if config.RateLimit == 0 {
+	if config.RateLimit == 0 && flagPassed("l") {
 		config.RateLimit = *rateLimitFlag
 	}
-	if config.CryptoKey == "" {
+	if config.CryptoKey == "" && flagPassed("crypto-key") {
 		config.CryptoKey = *cryptoKeyFlag
 	}
-	if config.ConfigFile == "" {
+	if config.ConfigFile == "" && flagPassed("c") {
 		config.ConfigFile = *configFileFlag
 	}
 
@@ -160,4 +160,14 @@ func parseAddr(value string) (string, error) {
 		scheme = "http://"
 	}
 	return fmt.Sprintf("%s%s:%s", scheme, matches[2], matches[3]), nil
+}
+
+func flagPassed(name string) bool {
+	found := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			found = true
+		}
+	})
+	return found
 }

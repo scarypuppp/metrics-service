@@ -2,39 +2,55 @@ package middlewares
 
 import (
 	"bytes"
-	"crypto/rand"
 	"crypto/rsa"
 	"io"
-	"log"
 	"net/http"
 	"sync"
-
-	"go.uber.org/zap/buffer"
 )
 
 var bufferPool = sync.Pool{
 	New: func() any {
-		return new(buffer.Buffer)
+		return new(bytes.Buffer)
 	},
 }
+
+const maxPooledBuffer = 64 << 10
 
 // DecryptRequest decrypts encrypted request body.
 func DecryptRequest(privateKey *rsa.PrivateKey) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Body == nil || r.ContentLength == 0 {
+				next.ServeHTTP(w, r)
+				return
+			}
 
-			buf := bufferPool.Get().(*buffer.Buffer)
+			buf, ok := bufferPool.Get().(*bytes.Buffer)
+			if !ok {
+				buf = new(bytes.Buffer)
+			}
 			buf.Reset()
-			_, err := io.Copy(buf, r.Body)
-			if err != nil {
-				log.Fatal(nil)
+			defer bufferPool.Put(buf)
+
+			if _, err := io.Copy(buf, r.Body); err != nil {
+				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+				return
 			}
-			decryptedData, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey, buf.Bytes())
-			if err != nil {
-				log.Fatal(err)
+
+			if buf.Len() == 0 {
+				next.ServeHTTP(w, r)
+				return
 			}
+
+			decryptedData, err := rsa.DecryptPKCS1v15(nil, privateKey, buf.Bytes())
+			if err != nil {
+				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+				return
+			}
+
 			r.Body = io.NopCloser(bytes.NewReader(decryptedData))
 			r.ContentLength = int64(len(decryptedData))
+
 			next.ServeHTTP(w, r)
 		})
 	}

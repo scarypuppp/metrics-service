@@ -64,34 +64,34 @@ func GetConfig() (*Config, error) {
 	configFileFlag := flag.String("c", "", "config file path")
 	flag.Parse()
 
-	if config.Addr == "" {
+	if config.Addr == "" && flagPassed("a") {
 		config.Addr = *addrFlag
 	}
-	if config.StoreInterval == 0 {
+	if config.StoreInterval == 0 && flagPassed("i") {
 		config.StoreInterval = *storeIntervalFlag
 	}
-	if config.FileStoragePath == "" {
+	if config.FileStoragePath == "" && flagPassed("f") {
 		config.FileStoragePath = *fileStoragePathFlag
 	}
 	if config.Restore == nil && flagPassed("r") {
 		config.Restore = restoreFlag
 	}
-	if config.DatabaseDSN == "" {
+	if config.DatabaseDSN == "" && flagPassed("d") {
 		config.DatabaseDSN = *databaseDsnFlag
 	}
-	if config.Key == "" {
+	if config.Key == "" && flagPassed("k") {
 		config.Key = *keyFlag
 	}
-	if config.AuditFile == "" {
+	if config.AuditFile == "" && flagPassed("audit-file") {
 		config.AuditFile = *auditFileFlag
 	}
-	if config.AuditURL == "" {
+	if config.AuditURL == "" && flagPassed("audit-url") {
 		config.AuditURL = *auditURLFlag
 	}
-	if config.CryptoKey == "" {
+	if config.CryptoKey == "" && flagPassed("crypto-key") {
 		config.CryptoKey = *cryptoKeyFlag
 	}
-	if config.ConfigFile == "" {
+	if config.ConfigFile == "" && flagPassed("c") {
 		config.ConfigFile = *configFileFlag
 	}
 

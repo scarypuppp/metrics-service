@@ -29,6 +29,7 @@ type Agent struct {
 	mu               sync.RWMutex
 	collectedMetrics []models.Metrics
 	collecting       atomic.Bool
+	collectDone      chan struct{}
 	pollTicker       *time.Ticker
 	reportTicker     *time.Ticker
 	pollCount        atomic.Int64
@@ -36,10 +37,14 @@ type Agent struct {
 
 // NewAgent constructor method for Agent object.
 func NewAgent(collector IMetricCollector, sender IMetricSender, logger zap.Logger, pollInterval int64, reportInterval int64) *Agent {
+	collectDone := make(chan struct{})
+	close(collectDone)
+
 	return &Agent{
 		collector:    collector,
 		sender:       sender,
 		logger:       logger,
+		collectDone:  collectDone,
 		pollTicker:   time.NewTicker(time.Duration(pollInterval) * time.Second),
 		reportTicker: time.NewTicker(time.Duration(reportInterval) * time.Second),
 	}
@@ -70,9 +75,14 @@ func (a *Agent) RunCtx(ctx context.Context, rateLimit int) {
 
 // waitForCollect blocks until collection finished or deadline reached
 func (a *Agent) waitForCollect() {
-	deadline := time.Now().Add(time.Second)
-	for a.collecting.Load() && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
+	a.mu.RLock()
+	done := a.collectDone
+	a.mu.RUnlock()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		a.logger.Warn("timed out waiting for collection to finish")
 	}
 }
 
@@ -137,6 +147,11 @@ func (a *Agent) runCollect() {
 		return
 	}
 
+	done := make(chan struct{})
+	a.mu.Lock()
+	a.collectDone = done
+	a.mu.Unlock()
+
 	runtimeCh := make(chan []models.Metrics, 1)
 	customCh := make(chan []models.Metrics, 1)
 	mergedCh := fanIn(runtimeCh, customCh)
@@ -145,6 +160,7 @@ func (a *Agent) runCollect() {
 	go a.collectCustomWorker(customCh)
 
 	go func() {
+		defer close(done)
 		defer a.collecting.Store(false)
 
 		var collectedMetrics []models.Metrics

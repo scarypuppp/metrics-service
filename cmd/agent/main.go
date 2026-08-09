@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -67,7 +68,7 @@ func readCert(path string) (*x509.Certificate, error) {
 	}
 	certificatePemBlock, _ := pem.Decode(certificateBytes)
 	if certificatePemBlock == nil {
-		return nil, err
+		return nil, fmt.Errorf("error decoding certfificate bytes")
 	}
 	certificate, err := x509.ParseCertificate(certificatePemBlock.Bytes)
 	if err != nil {

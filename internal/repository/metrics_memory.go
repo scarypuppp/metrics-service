@@ -19,7 +19,8 @@ type MemMetricsStorage struct {
 	fileName      string
 	storeInterval time.Duration
 
-	mu sync.RWMutex
+	mu   sync.RWMutex
+	done chan struct{}
 }
 
 // Option configures a MemMetricsStorage during construction.
@@ -45,7 +46,9 @@ func WithFile(ctx context.Context, fileName string, storeIntervalSec int, restor
 
 // NewMemMetricsStorage creates an in-memory storage and applies the given options.
 func NewMemMetricsStorage(opts ...Option) (*MemMetricsStorage, error) {
-	s := &MemMetricsStorage{Metrics: make(map[string]models.Metrics)}
+	done := make(chan struct{})
+	close(done) // already-flushed by default when no periodic save goroutine runs
+	s := &MemMetricsStorage{Metrics: make(map[string]models.Metrics), done: done}
 	for _, opt := range opts {
 		if err := opt(s); err != nil {
 			return nil, fmt.Errorf("apply option: %w", err)
@@ -54,9 +57,15 @@ func NewMemMetricsStorage(opts ...Option) (*MemMetricsStorage, error) {
 	return s, nil
 }
 
+func (s *MemMetricsStorage) Done() <-chan struct{} {
+	return s.done
+}
+
 func (s *MemMetricsStorage) startPeriodicSave(ctx context.Context) {
+	s.done = make(chan struct{})
 	ticker := time.NewTicker(s.storeInterval)
 	go func() {
+		defer close(s.done)
 		defer ticker.Stop()
 		for {
 			select {

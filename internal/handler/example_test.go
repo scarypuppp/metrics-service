@@ -19,7 +19,7 @@ func newExampleRouter() http.Handler {
 		panic(err)
 	}
 	metricService := service.NewMetricService(storage)
-	return GetAppRouter("", *metricService, audit.NewPublisher(), nil)
+	return GetAppRouter("", nil, *metricService, audit.NewPublisher(), nil)
 }
 
 // doRequest sends a request to the router and returns the recorded response.

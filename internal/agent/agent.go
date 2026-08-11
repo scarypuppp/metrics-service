@@ -29,6 +29,7 @@ type Agent struct {
 	mu               sync.RWMutex
 	collectedMetrics []models.Metrics
 	collecting       atomic.Bool
+	collectDone      chan struct{}
 	pollTicker       *time.Ticker
 	reportTicker     *time.Ticker
 	pollCount        atomic.Int64
@@ -36,10 +37,14 @@ type Agent struct {
 
 // NewAgent constructor method for Agent object.
 func NewAgent(collector IMetricCollector, sender IMetricSender, logger zap.Logger, pollInterval int64, reportInterval int64) *Agent {
+	collectDone := make(chan struct{})
+	close(collectDone)
+
 	return &Agent{
 		collector:    collector,
 		sender:       sender,
 		logger:       logger,
+		collectDone:  collectDone,
 		pollTicker:   time.NewTicker(time.Duration(pollInterval) * time.Second),
 		reportTicker: time.NewTicker(time.Duration(reportInterval) * time.Second),
 	}
@@ -53,15 +58,31 @@ func (a *Agent) RunCtx(ctx context.Context, rateLimit int) {
 	for {
 		select {
 		case <-ctx.Done():
-			a.logger.Info("Stopping agent...")
+			a.logger.Info("Gracefully stopping agent...")
+			a.waitForCollect()
+			a.runReport(rateLimit)
+			a.logger.Info("Agent stopped")
 			return
 		case <-a.pollTicker.C:
 			a.logger.Debug("Poll tick")
 			a.runCollect()
 		case <-a.reportTicker.C:
 			a.logger.Debug("Report tick")
-			a.runReport(ctx, rateLimit)
+			a.runReport(rateLimit)
 		}
+	}
+}
+
+// waitForCollect blocks until collection finished or deadline reached
+func (a *Agent) waitForCollect() {
+	a.mu.RLock()
+	done := a.collectDone
+	a.mu.RUnlock()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		a.logger.Warn("timed out waiting for collection to finish")
 	}
 }
 
@@ -86,17 +107,12 @@ func (a *Agent) collectCustomWorker(resultsCh chan<- []models.Metrics) {
 }
 
 // sendMetricsWorker represents worker that sends metrics to the server.
-func (a *Agent) sendMetricsWorker(ctx context.Context, id int, sendInCh <-chan models.Metrics, sendOutCh chan<- error) {
+func (a *Agent) sendMetricsWorker(id int, sendInCh <-chan models.Metrics, sendOutCh chan<- error) {
 	defer a.logger.Info("SendMetric worker done", zap.Int("id", id))
 	a.logger.Info("SendMetric worker started", zap.Int("id", id))
 
 	for metric := range sendInCh {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			sendOutCh <- a.sender.SendMetric(metric)
-		}
+		sendOutCh <- a.sender.SendMetric(metric)
 	}
 }
 
@@ -131,6 +147,11 @@ func (a *Agent) runCollect() {
 		return
 	}
 
+	done := make(chan struct{})
+	a.mu.Lock()
+	a.collectDone = done
+	a.mu.Unlock()
+
 	runtimeCh := make(chan []models.Metrics, 1)
 	customCh := make(chan []models.Metrics, 1)
 	mergedCh := fanIn(runtimeCh, customCh)
@@ -139,6 +160,7 @@ func (a *Agent) runCollect() {
 	go a.collectCustomWorker(customCh)
 
 	go func() {
+		defer close(done)
 		defer a.collecting.Store(false)
 
 		var collectedMetrics []models.Metrics
@@ -156,7 +178,7 @@ func (a *Agent) runCollect() {
 }
 
 // runReport entrypoint to start send metrics to the server.
-func (a *Agent) runReport(ctx context.Context, rateLimit int) {
+func (a *Agent) runReport(rateLimit int) {
 	a.mu.RLock()
 	metrics := make([]models.Metrics, len(a.collectedMetrics))
 	copy(metrics, a.collectedMetrics)
@@ -175,17 +197,13 @@ func (a *Agent) runReport(ctx context.Context, rateLimit int) {
 		workerWg.Add(1)
 		go func(id int) {
 			defer workerWg.Done()
-			a.sendMetricsWorker(ctx, id, sendInCh, sendOutCh)
+			a.sendMetricsWorker(id, sendInCh, sendOutCh)
 		}(i)
 	}
 
 	go func() {
 		for _, m := range metrics {
-			select {
-			case <-ctx.Done():
-				return
-			case sendInCh <- m:
-			}
+			sendInCh <- m
 		}
 		close(sendInCh)
 	}()

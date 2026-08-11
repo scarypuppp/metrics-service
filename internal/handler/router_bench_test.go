@@ -19,7 +19,7 @@ func newBenchRouter(b *testing.B) http.Handler {
 		b.Fatal(err)
 	}
 	metricService := service.NewMetricService(storage)
-	return GetAppRouter("", *metricService, audit.NewPublisher(), nil)
+	return GetAppRouter("", nil, *metricService, audit.NewPublisher(), nil)
 }
 
 func benchRequest(b *testing.B, router http.Handler, method, target string, body []byte) {

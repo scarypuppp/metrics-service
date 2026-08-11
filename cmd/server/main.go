@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"log"
 	"net/http"
@@ -52,16 +55,19 @@ func main() {
 	}
 	defer dbObj.Close()
 
+	// Контекст, отменяемый при получении сигнала завершения. Используется как для
+	// остановки HTTP-сервера, так и для триггера финального сохранения storage.
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	defer cancel()
+
 	// Инициализация репозитория метрик
 	var storage repository.MetricsStorage
-	storageContext, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
 
 	if serverConfig.DatabaseDSN == "" {
 		var opts []repository.Option
 		if serverConfig.FileStoragePath != "" {
 			opts = append(opts, repository.WithFile(
-				storageContext,
+				ctx,
 				serverConfig.FileStoragePath,
 				serverConfig.StoreInterval,
 				*serverConfig.Restore,
@@ -104,8 +110,17 @@ func main() {
 		}
 	}
 
+	var privateKey *rsa.PrivateKey
+	if serverConfig.CryptoKey != "" {
+		privateKey, err = readPrivateKey(serverConfig.CryptoKey)
+		if err != nil {
+			logger.Fatal("error reading private key", zap.Error(err))
+		}
+	}
+
 	router := handlers.GetAppRouter(
 		serverConfig.Key,
+		privateKey,
 		*metricService,
 		publisher,
 		dbObj,
@@ -128,9 +143,8 @@ func main() {
 
 	logger.Info("Listening", zap.String("addr", serverConfig.Addr))
 	// Graceful shutdown
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	<-ctx.Done()
+	cancel()
 	logger.Info("Shutting down server...")
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -138,6 +152,15 @@ func main() {
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Error("Server forced to shutdown", zap.Error(err))
+	}
+
+	if memStorage, ok := storage.(*repository.MemMetricsStorage); ok {
+		select {
+		case <-memStorage.Done():
+			logger.Info("storage write to file")
+		case <-time.After(10 * time.Second):
+			logger.Warn("storage write timed out")
+		}
 	}
 
 	publisher.Close()
@@ -191,4 +214,20 @@ func printVersion() {
 	fmt.Printf("Build version: %s\n", bv)
 	fmt.Printf("Build date: %s\n", bd)
 	fmt.Printf("Build commit: %s\n", bc)
+}
+
+func readPrivateKey(path string) (*rsa.PrivateKey, error) {
+	privateKeyBytes, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	privateKeyPemBlock, _ := pem.Decode(privateKeyBytes)
+	if privateKeyPemBlock == nil {
+		return nil, err
+	}
+	privateKey, err := x509.ParsePKCS1PrivateKey(privateKeyPemBlock.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	return privateKey, nil
 }

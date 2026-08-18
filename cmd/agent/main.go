@@ -6,6 +6,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -48,9 +49,14 @@ func main() {
 		logger.Fatal("error reading certificate", zap.Error(err))
 	}
 
+	host, err := getOutboundIP()
+	if err != nil {
+		logger.Fatal("error getting outbound ip", zap.Error(err))
+	}
+
 	newAgent := agent.NewAgent(
 		agent.NewCollector(),
-		agent.NewSender(client, agentConfig.ServerAddr, agentConfig.Key, certificate),
+		agent.NewSender(client, agentConfig.ServerAddr, agentConfig.Key, certificate, host),
 		*logger,
 		agentConfig.PoolInterval,
 		agentConfig.ReportInterval,
@@ -75,4 +81,17 @@ func readCert(path string) (*x509.Certificate, error) {
 		return nil, err
 	}
 	return certificate, nil
+}
+
+func getOutboundIP() (string, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", err
+	}
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
+			return ipnet.IP.String(), nil
+		}
+	}
+	return "", fmt.Errorf("no suitable IP address found")
 }

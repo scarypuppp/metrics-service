@@ -28,11 +28,12 @@ func NewSender(
 	baseURL string,
 	key string,
 	publicKey *x509.Certificate,
+	host string,
 ) *Sender {
 	client.SetBaseURL(baseURL).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Accept-Encoding", "gzip").
-		SetContentLength(true)
+		SetHeader("X-Real-IP", host)
 	return &Sender{client, key, publicKey}
 }
 

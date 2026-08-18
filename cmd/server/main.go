@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
 	"syscall"
@@ -118,8 +119,17 @@ func main() {
 		}
 	}
 
+	var prefix netip.Prefix
+	if serverConfig.TrustedSubnet != "" {
+		prefix, err = netip.ParsePrefix(serverConfig.TrustedSubnet)
+		if err != nil {
+			logger.Fatal("error parsing trusted subnet prefix", zap.Error(err))
+		}
+	}
+
 	router := handlers.GetAppRouter(
 		serverConfig.Key,
+		prefix,
 		privateKey,
 		*metricService,
 		publisher,

@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 
 	"github.com/scarypuppp/metrics-service/internal/audit"
@@ -19,7 +20,7 @@ func newExampleRouter() http.Handler {
 		panic(err)
 	}
 	metricService := service.NewMetricService(storage)
-	return GetAppRouter("", nil, *metricService, audit.NewPublisher(), nil)
+	return GetAppRouter("", netip.Prefix{}, nil, *metricService, audit.NewPublisher(), nil)
 }
 
 // doRequest sends a request to the router and returns the recorded response.

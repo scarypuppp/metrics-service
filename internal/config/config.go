@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net/netip"
 	"os"
 	"regexp"
 	"time"
@@ -30,6 +31,7 @@ type Config struct {
 	AuditURL        string `env:"AUDIT_URL"`
 	CryptoKey       string `env:"CRYPTO_KEY"`
 	ConfigFile      string `env:"CONFIG"`
+	TrustedSubnet   string `env:"TRUSTED_SUBNET"`
 }
 
 // ConfigJSON represents config from json.
@@ -40,6 +42,7 @@ type ConfigJSON struct {
 	StoreFile     string `json:"store_file"`
 	DatabaseDSN   string `json:"database_dsn"`
 	CryptoKey     string `json:"crypto_key"`
+	TrustedSubnet string `json:"trusted_subnet"`
 }
 
 // GetConfig builds server Config
@@ -62,6 +65,7 @@ func GetConfig() (*Config, error) {
 	auditURLFlag := flag.String("audit-url", "", "audit url path")
 	cryptoKeyFlag := flag.String("crypto-key", "", "private key path")
 	configFileFlag := flag.String("c", "", "config file path")
+	trustedSubnetFlag := flag.String("t", "", "trusted subnet CIDR")
 	flag.Parse()
 
 	if config.Addr == "" && flagPassed("a") {
@@ -94,6 +98,9 @@ func GetConfig() (*Config, error) {
 	if config.ConfigFile == "" && flagPassed("c") {
 		config.ConfigFile = *configFileFlag
 	}
+	if config.TrustedSubnet == "" && flagPassed("t") {
+		config.TrustedSubnet = *trustedSubnetFlag
+	}
 
 	// 3. json
 	if config.ConfigFile != "" {
@@ -110,6 +117,11 @@ func GetConfig() (*Config, error) {
 		return nil, err
 	}
 	config.Addr = addr
+
+	err = checkCIDR(config.TrustedSubnet)
+	if err != nil {
+		return nil, fmt.Errorf("invalid CIDR: %w", err)
+	}
 	return &config, nil
 }
 
@@ -174,6 +186,9 @@ func configFromJSON(config *Config) error {
 	if config.CryptoKey == "" {
 		config.CryptoKey = configJSON.CryptoKey
 	}
+	if config.TrustedSubnet == "" {
+		config.TrustedSubnet = configJSON.TrustedSubnet
+	}
 	return nil
 }
 
@@ -185,4 +200,9 @@ func parseAddr(value string) (string, error) {
 		return "", fmt.Errorf("invalid address: %s", value)
 	}
 	return fmt.Sprintf("%s:%s", matches[2], matches[3]), nil
+}
+
+func checkCIDR(value string) error {
+	_, err := netip.ParsePrefix(value)
+	return err
 }

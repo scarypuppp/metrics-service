@@ -17,6 +17,7 @@ const (
 	defaultStoreInterval   = 300
 	defaultFileStoragePath = "metrics.json"
 	defaultRestore         = true
+	defaultGRPCAddr        = ":3200"
 )
 
 // Config holds server configuration populated from environment variables and command-line flags.
@@ -32,6 +33,7 @@ type Config struct {
 	CryptoKey       string `env:"CRYPTO_KEY"`
 	ConfigFile      string `env:"CONFIG"`
 	TrustedSubnet   string `env:"TRUSTED_SUBNET"`
+	GRPCAddr        string `env:"GRPC_ADDRESS"`
 }
 
 // ConfigJSON represents config from json.
@@ -66,6 +68,7 @@ func GetConfig() (*Config, error) {
 	cryptoKeyFlag := flag.String("crypto-key", "", "private key path")
 	configFileFlag := flag.String("c", "", "config file path")
 	trustedSubnetFlag := flag.String("t", "", "trusted subnet CIDR")
+	grpcAddrFlag := flag.String("grpc-address", "", "grpc server address host:port")
 	flag.Parse()
 
 	if config.Addr == "" && flagPassed("a") {
@@ -101,6 +104,9 @@ func GetConfig() (*Config, error) {
 	if config.TrustedSubnet == "" && flagPassed("t") {
 		config.TrustedSubnet = *trustedSubnetFlag
 	}
+	if config.GRPCAddr == "" && flagPassed("grpc-address") {
+		config.GRPCAddr = *grpcAddrFlag
+	}
 
 	// 3. json
 	if config.ConfigFile != "" {
@@ -118,9 +124,10 @@ func GetConfig() (*Config, error) {
 	}
 	config.Addr = addr
 
-	err = checkCIDR(config.TrustedSubnet)
-	if err != nil {
-		return nil, fmt.Errorf("invalid CIDR: %w", err)
+	if config.TrustedSubnet != "" {
+		if err := checkCIDR(config.TrustedSubnet); err != nil {
+			return nil, fmt.Errorf("invalid CIDR: %w", err)
+		}
 	}
 	return &config, nil
 }
@@ -150,6 +157,9 @@ func setDefaults(config *Config) {
 	if config.Restore == nil {
 		restore := defaultRestore
 		config.Restore = &restore
+	}
+	if config.GRPCAddr == "" {
+		config.GRPCAddr = defaultGRPCAddr
 	}
 }
 

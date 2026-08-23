@@ -10,12 +10,15 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/scarypuppp/metrics-service/internal/agent"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -54,9 +57,20 @@ func main() {
 		logger.Fatal("error getting outbound ip", zap.Error(err))
 	}
 
+	transport := agent.TransportType(strings.ToUpper(agentConfig.Transport))
+
+	var grpcConn *grpc.ClientConn
+	if transport == agent.TransportGRPC {
+		grpcConn, err = grpc.NewClient(agentConfig.GRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			logger.Fatal("error creating grpc client", zap.Error(err))
+		}
+		defer grpcConn.Close()
+	}
+
 	newAgent := agent.NewAgent(
 		agent.NewCollector(),
-		agent.NewSender(client, agentConfig.ServerAddr, agentConfig.Key, certificate, host),
+		agent.NewSender(client, grpcConn, agentConfig.ServerAddr, agentConfig.Key, certificate, host, transport),
 		*logger,
 		agentConfig.PoolInterval,
 		agentConfig.ReportInterval,

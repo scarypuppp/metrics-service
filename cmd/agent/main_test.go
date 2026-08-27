@@ -42,10 +42,10 @@ type mockSender struct {
 	err  error
 }
 
-func (m *mockSender) SendMetric(metric models.Metrics) error {
+func (m *mockSender) SendMetrics(metrics []models.Metrics) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.sent = append(m.sent, metric)
+	m.sent = append(m.sent, metrics...)
 	return m.err
 }
 
@@ -87,7 +87,7 @@ func TestAgent_SendsOnReportInterval(t *testing.T) {
 	time.Sleep(3 * time.Second)
 
 	if len(sender.getSent()) == 0 {
-		t.Error("expected SendMetric to be called, got 0 sends")
+		t.Error("expected SendMetrics to be called, got 0 sends")
 	}
 }
 

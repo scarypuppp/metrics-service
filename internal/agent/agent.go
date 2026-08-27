@@ -18,7 +18,7 @@ type IMetricCollector interface {
 
 // IMetricSender interface for metric sending operations
 type IMetricSender interface {
-	SendMetric(metric models.Metrics) error
+	SendMetrics(metrics []models.Metrics) error
 }
 
 // Agent represents object collecting and sending metrics.
@@ -106,13 +106,13 @@ func (a *Agent) collectCustomWorker(resultsCh chan<- []models.Metrics) {
 	resultsCh <- result
 }
 
-// sendMetricsWorker represents worker that sends metrics to the server.
-func (a *Agent) sendMetricsWorker(id int, sendInCh <-chan models.Metrics, sendOutCh chan<- error) {
-	defer a.logger.Info("SendMetric worker done", zap.Int("id", id))
-	a.logger.Info("SendMetric worker started", zap.Int("id", id))
+// sendMetricsWorker represents worker that sends batches of metrics to the server.
+func (a *Agent) sendMetricsWorker(id int, sendInCh <-chan []models.Metrics, sendOutCh chan<- error) {
+	defer a.logger.Info("SendMetrics worker done", zap.Int("id", id))
+	a.logger.Info("SendMetrics worker started", zap.Int("id", id))
 
-	for metric := range sendInCh {
-		sendOutCh <- a.sender.SendMetric(metric)
+	for batch := range sendInCh {
+		sendOutCh <- a.sender.SendMetrics(batch)
 	}
 }
 
@@ -177,6 +177,28 @@ func (a *Agent) runCollect() {
 	}()
 }
 
+// splitBatches распределяет метрики по n батчам примерно равного размера.
+// Пустые батчи не возвращаются, поэтому для len(metrics) < n батчей будет меньше n.
+func splitBatches(metrics []models.Metrics, n int) [][]models.Metrics {
+	if n > len(metrics) {
+		n = len(metrics)
+	}
+
+	batches := make([][]models.Metrics, 0, n)
+	size := len(metrics) / n
+	rest := len(metrics) % n
+	for start := 0; start < len(metrics); {
+		end := start + size
+		if rest > 0 {
+			end++
+			rest--
+		}
+		batches = append(batches, metrics[start:end])
+		start = end
+	}
+	return batches
+}
+
 // runReport entrypoint to start send metrics to the server.
 func (a *Agent) runReport(rateLimit int) {
 	a.mu.RLock()
@@ -188,9 +210,13 @@ func (a *Agent) runReport(rateLimit int) {
 		a.logger.Info("No metrics to report, skipping")
 		return
 	}
+	if rateLimit < 1 {
+		rateLimit = 1
+	}
 
-	sendInCh := make(chan models.Metrics, rateLimit)
-	sendOutCh := make(chan error, rateLimit)
+	batches := splitBatches(metrics, rateLimit)
+	sendInCh := make(chan []models.Metrics, len(batches))
+	sendOutCh := make(chan error, len(batches))
 
 	var workerWg sync.WaitGroup
 	for i := 0; i < rateLimit; i++ {
@@ -202,15 +228,15 @@ func (a *Agent) runReport(rateLimit int) {
 	}
 
 	go func() {
-		for _, m := range metrics {
-			sendInCh <- m
+		for _, batch := range batches {
+			sendInCh <- batch
 		}
 		close(sendInCh)
 	}()
 	go func() {
 		for err := range sendOutCh {
 			if err != nil {
-				a.logger.Error("ERROR SENDING METRIC", zap.Error(err))
+				a.logger.Error("ERROR SENDING METRICS", zap.Error(err))
 			}
 		}
 	}()

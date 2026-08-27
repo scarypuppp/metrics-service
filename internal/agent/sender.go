@@ -17,6 +17,13 @@ import (
 	"github.com/scarypuppp/metrics-service/internal/utils/retry"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/proto"
+)
+
+// Метаданные, которые агент передаёт серверу вместе с gRPC запросом.
+const (
+	realIPMetadataKey = "x-real-ip"
+	hashMetadataKey   = "hashsha256"
 )
 
 type TransportType string
@@ -61,12 +68,19 @@ func NewSender(
 	return &Sender{client, metricsClient, key, publicKey, host, transport}
 }
 
-func (s *Sender) SendMetric(metric models.Metrics) error {
-	if s.transport == TransportHTTP {
-		return s.sendMetricHTTP(metric)
-	} else if s.transport == TransportGRPC {
-		return s.sendMetricGRPC(metric)
-	} else {
+// SendMetrics delivers a batch of metrics to the server.
+func (s *Sender) SendMetrics(metrics []models.Metrics) error {
+	switch s.transport {
+	case TransportHTTP:
+		for _, metric := range metrics {
+			if err := s.sendMetricHTTP(metric); err != nil {
+				return err
+			}
+		}
+		return nil
+	case TransportGRPC:
+		return s.sendMetricsGRPC(metrics)
+	default:
 		return fmt.Errorf("invalid transport type: %s", s.transport)
 	}
 }
@@ -105,19 +119,30 @@ func (s *Sender) sendMetricHTTP(metric models.Metrics) error {
 	)
 }
 
-func (s *Sender) sendMetricGRPC(metric models.Metrics) error {
+func (s *Sender) sendMetricsGRPC(metrics []models.Metrics) error {
+	protoMetrics := make([]*pb.Metric, 0, len(metrics))
+	for _, metric := range metrics {
+		protoMetric, err := toProtoMetric(metric)
+		if err != nil {
+			return fmt.Errorf("failed to convert metric: %w", err)
+		}
+		protoMetrics = append(protoMetrics, protoMetric)
+	}
+	req := pb.UpdateMetricsRequest_builder{Metrics: protoMetrics}.Build()
+
+	ctx := metadata.AppendToOutgoingContext(context.Background(), realIPMetadataKey, s.host)
+	if s.key != "" {
+		body, err := proto.MarshalOptions{Deterministic: true}.Marshal(req)
+		if err != nil {
+			return fmt.Errorf("failed to marshal request: %w", err)
+		}
+		ctx = metadata.AppendToOutgoingContext(ctx, hashMetadataKey, hash.GetHash(body, s.key))
+	}
+
 	return retry.Do(
 		func() error {
-			protoMetric, err := toProtoMetric(metric)
-			if err != nil {
-				return fmt.Errorf("failed to convert metric: %w", err)
-			}
-
-			req := pb.UpdateMetricsRequest_builder{Metrics: []*pb.Metric{protoMetric}}.Build()
-
-			ctx := metadata.AppendToOutgoingContext(context.Background(), "x-real-ip", s.host)
 			if _, err := s.grpcClient.UpdateMetrics(ctx, req); err != nil {
-				return fmt.Errorf("failed to send metric via grpc: %w", err)
+				return fmt.Errorf("failed to send metrics via grpc: %w", err)
 			}
 			return nil
 		},
@@ -157,7 +182,7 @@ func (s *Sender) prepareData(data []byte) ([]byte, error) {
 			return nil, err
 		}
 	}
-	return data, nil
+	return dataToSend, nil
 }
 
 func compressData(data []byte) ([]byte, error) {

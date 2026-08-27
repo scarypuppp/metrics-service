@@ -152,7 +152,7 @@ func main() {
 		}
 	}()
 
-	grpcServer := grpc.NewMetricServer(logger, metricService, prefix, serverConfig.GRPCAddr)
+	grpcServer := grpc.NewMetricServer(logger, metricService, prefix, serverConfig.Key, serverConfig.GRPCAddr)
 	// Запуск grpc
 	go func() {
 		if err := grpcServer.Run(); err != nil {

@@ -5,7 +5,8 @@ import (
 	"net/netip"
 )
 
-func CheckSubnet(prefix netip.Prefix) func(http.Handler) http.Handler {
+// TrustedSubnet returns a middleware that rejects requests whose IP is outside the given prefix.
+func TrustedSubnet(prefix netip.Prefix) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			requestIP := GetCtxRequestIP(r.Context())

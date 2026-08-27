@@ -59,14 +59,11 @@ func main() {
 
 	transport := agent.TransportType(strings.ToUpper(agentConfig.Transport))
 
-	var grpcConn *grpc.ClientConn
-	if transport == agent.TransportGRPC {
-		grpcConn, err = grpc.NewClient(agentConfig.GRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			logger.Fatal("error creating grpc client", zap.Error(err))
-		}
-		defer grpcConn.Close()
+	grpcConn, closeGRPCConn, err := initGRPCConn(transport, agentConfig.GRPCAddr)
+	if err != nil {
+		logger.Fatal("error creating grpc client", zap.Error(err))
 	}
+	defer closeGRPCConn()
 
 	newAgent := agent.NewAgent(
 		agent.NewCollector(),
@@ -79,6 +76,19 @@ func main() {
 	log.Println("Agent started")
 	newAgent.RunCtx(ctx, agentConfig.RateLimit)
 	log.Println("Agent stopped")
+}
+
+// initGRPCConn устанавливает соединение с gRPC сервером, если выбран соответствующий транспорт.
+func initGRPCConn(transport agent.TransportType, addr string) (*grpc.ClientConn, func(), error) {
+	if transport != agent.TransportGRPC {
+		return nil, func() {}, nil
+	}
+
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, func() {}, err
+	}
+	return conn, func() { conn.Close() }, nil
 }
 
 func readCert(path string) (*x509.Certificate, error) {

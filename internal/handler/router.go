@@ -46,7 +46,7 @@ func GetAppRouter(
 		r.Group(func(r chi.Router) {
 			r.Use(middlewares.GetRequestIP)
 			if prefix.IsValid() {
-				r.Use(middlewares.CheckSubnet(prefix))
+				r.Use(middlewares.TrustedSubnet(prefix))
 			}
 			r.Route("/update", func(r chi.Router) {
 				r.Post("/", UpdateMetricHandler(metricService, publisher))

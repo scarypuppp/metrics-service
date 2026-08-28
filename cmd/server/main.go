@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,6 +17,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/scarypuppp/metrics-service/internal/audit"
 	"github.com/scarypuppp/metrics-service/internal/config"
+	"github.com/scarypuppp/metrics-service/internal/grpc"
 	handlers "github.com/scarypuppp/metrics-service/internal/handler"
 	"github.com/scarypuppp/metrics-service/internal/infrastructure/postgres"
 	"github.com/scarypuppp/metrics-service/internal/repository"
@@ -118,8 +120,17 @@ func main() {
 		}
 	}
 
+	var prefix netip.Prefix
+	if serverConfig.TrustedSubnet != "" {
+		prefix, err = netip.ParsePrefix(serverConfig.TrustedSubnet)
+		if err != nil {
+			logger.Fatal("error parsing trusted subnet prefix", zap.Error(err))
+		}
+	}
+
 	router := handlers.GetAppRouter(
 		serverConfig.Key,
+		prefix,
 		privateKey,
 		*metricService,
 		publisher,
@@ -138,6 +149,14 @@ func main() {
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("run server failed", zap.Error(err))
+		}
+	}()
+
+	grpcServer := grpc.NewMetricServer(logger, metricService, prefix, serverConfig.Key, serverConfig.GRPCAddr)
+	// Запуск grpc
+	go func() {
+		if err := grpcServer.Run(); err != nil {
+			logger.Error("grpc server run failed", zap.Error(err))
 		}
 	}()
 

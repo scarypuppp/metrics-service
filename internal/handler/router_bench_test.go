@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"testing"
 
 	"github.com/scarypuppp/metrics-service/internal/audit"
@@ -19,7 +20,7 @@ func newBenchRouter(b *testing.B) http.Handler {
 		b.Fatal(err)
 	}
 	metricService := service.NewMetricService(storage)
-	return GetAppRouter("", nil, *metricService, audit.NewPublisher(), nil)
+	return GetAppRouter("", netip.Prefix{}, nil, *metricService, audit.NewPublisher(), nil)
 }
 
 func benchRequest(b *testing.B, router http.Handler, method, target string, body []byte) {

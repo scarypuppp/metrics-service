@@ -6,15 +6,19 @@ import (
 	"encoding/pem"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/scarypuppp/metrics-service/internal/agent"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -48,9 +52,22 @@ func main() {
 		logger.Fatal("error reading certificate", zap.Error(err))
 	}
 
+	host, err := getOutboundIP()
+	if err != nil {
+		logger.Fatal("error getting outbound ip", zap.Error(err))
+	}
+
+	transport := agent.TransportType(strings.ToUpper(agentConfig.Transport))
+
+	grpcConn, closeGRPCConn, err := initGRPCConn(transport, agentConfig.GRPCAddr)
+	if err != nil {
+		logger.Fatal("error creating grpc client", zap.Error(err))
+	}
+	defer closeGRPCConn()
+
 	newAgent := agent.NewAgent(
 		agent.NewCollector(),
-		agent.NewSender(client, agentConfig.ServerAddr, agentConfig.Key, certificate),
+		agent.NewSender(client, grpcConn, agentConfig.ServerAddr, agentConfig.Key, certificate, host, transport),
 		*logger,
 		agentConfig.PoolInterval,
 		agentConfig.ReportInterval,
@@ -59,6 +76,19 @@ func main() {
 	log.Println("Agent started")
 	newAgent.RunCtx(ctx, agentConfig.RateLimit)
 	log.Println("Agent stopped")
+}
+
+// initGRPCConn устанавливает соединение с gRPC сервером, если выбран соответствующий транспорт.
+func initGRPCConn(transport agent.TransportType, addr string) (*grpc.ClientConn, func(), error) {
+	if transport != agent.TransportGRPC {
+		return nil, func() {}, nil
+	}
+
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, func() {}, err
+	}
+	return conn, func() { conn.Close() }, nil
 }
 
 func readCert(path string) (*x509.Certificate, error) {
@@ -75,4 +105,17 @@ func readCert(path string) (*x509.Certificate, error) {
 		return nil, err
 	}
 	return certificate, nil
+}
+
+func getOutboundIP() (string, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", err
+	}
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
+			return ipnet.IP.String(), nil
+		}
+	}
+	return "", fmt.Errorf("no suitable IP address found")
 }

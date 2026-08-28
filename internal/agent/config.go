@@ -16,6 +16,8 @@ const (
 	defaultPoolInterval   = int64(2)
 	defaultReportInterval = int64(10)
 	defaultRateLimit      = 1
+	defaultGRPCAddr       = "localhost:3200"
+	defaultTransport      = "HTTP"
 )
 
 // Config holds agent configuration populated from environment variables and command-line flags.
@@ -27,6 +29,8 @@ type Config struct {
 	RateLimit      int    `env:"RATE_LIMIT"`
 	CryptoKey      string `env:"CRYPTO_KEY"`
 	ConfigFile     string `env:"CONFIG"`
+	GRPCAddr       string `env:"GRPC_ADDRESS"`
+	Transport      string `env:"TRANSPORT"`
 }
 
 // ConfigJSON represents config from json.
@@ -54,6 +58,8 @@ func GetConfig() (*Config, error) {
 	rateLimitFlag := flag.Int("l", 0, "rate limit to send data")
 	cryptoKeyFlag := flag.String("crypto-key", "", "public key path")
 	configFileFlag := flag.String("c", "", "config file path")
+	grpcAddrFlag := flag.String("grpc-address", "", "grpc server address host:port")
+	transportFlag := flag.String("transport", "", "transport to send metrics: HTTP or GRPC")
 	flag.Parse()
 
 	if config.ServerAddr == "" && flagPassed("a") {
@@ -76,6 +82,12 @@ func GetConfig() (*Config, error) {
 	}
 	if config.ConfigFile == "" && flagPassed("c") {
 		config.ConfigFile = *configFileFlag
+	}
+	if config.GRPCAddr == "" && flagPassed("grpc-address") {
+		config.GRPCAddr = *grpcAddrFlag
+	}
+	if config.Transport == "" && flagPassed("transport") {
+		config.Transport = *transportFlag
 	}
 
 	// 3. json
@@ -110,6 +122,12 @@ func setDefaults(config *Config) {
 	}
 	if config.RateLimit == 0 {
 		config.RateLimit = defaultRateLimit
+	}
+	if config.GRPCAddr == "" {
+		config.GRPCAddr = defaultGRPCAddr
+	}
+	if config.Transport == "" {
+		config.Transport = defaultTransport
 	}
 }
 

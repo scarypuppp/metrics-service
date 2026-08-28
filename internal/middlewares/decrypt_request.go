@@ -14,8 +14,6 @@ var bufferPool = sync.Pool{
 	},
 }
 
-const maxPooledBuffer = 64 << 10
-
 // DecryptRequest decrypts encrypted request body.
 func DecryptRequest(privateKey *rsa.PrivateKey) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {

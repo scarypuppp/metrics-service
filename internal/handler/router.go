@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"crypto/rsa"
+	"net/netip"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -14,6 +15,7 @@ import (
 // GetAppRouter builds the application chi router with all middlewares and metric routes wired up.
 func GetAppRouter(
 	key string,
+	prefix netip.Prefix,
 	privateKey *rsa.PrivateKey,
 	metricService service.MetricService,
 	publisher *audit.Publisher,
@@ -43,6 +45,9 @@ func GetAppRouter(
 		})
 		r.Group(func(r chi.Router) {
 			r.Use(middlewares.GetRequestIP)
+			if prefix.IsValid() {
+				r.Use(middlewares.TrustedSubnet(prefix))
+			}
 			r.Route("/update", func(r chi.Router) {
 				r.Post("/", UpdateMetricHandler(metricService, publisher))
 				r.Post("/{metricType}/{metricName}/{metricValue}", UpdateMetricByURLHandler(metricService, publisher))
